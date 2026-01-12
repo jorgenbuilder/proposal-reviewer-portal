@@ -8,7 +8,7 @@ const GOVERNANCE_CANISTER_ID = "rrkah-fqaaa-aaaaa-aaaaq-cai";
 export const PROTOCOL_CANISTER_MANAGEMENT_TOPIC = 17;
 
 // Only verify proposals after this ID
-export const MIN_PROPOSAL_ID = 139900n;
+export const MIN_PROPOSAL_ID = 139768n;
 
 export interface ProposalInfo {
   id: bigint;
@@ -140,7 +140,9 @@ function extractCommitHash(text: string): string | null {
   return match ? match[0] : null;
 }
 
-export async function listProposals(limit: number = 100): Promise<ProposalInfo[]> {
+export async function listProposals(
+  limit: number = 100
+): Promise<ProposalInfo[]> {
   const agent = await createAgent();
 
   const governance = Actor.createActor(listProposalsIdlFactory, {
@@ -178,7 +180,9 @@ export async function listProposals(limit: number = 100): Promise<ProposalInfo[]
   });
 }
 
-export async function getProposal(proposalId: bigint): Promise<ProposalDetail | null> {
+export async function getProposal(
+  proposalId: bigint
+): Promise<ProposalDetail | null> {
   const agent = await createAgent();
 
   const governance = Actor.createActor(getProposalIdlFactory, {
