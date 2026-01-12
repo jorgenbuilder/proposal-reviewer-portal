@@ -125,7 +125,7 @@ export async function getRecentProposals(limit: number = 50): Promise<ProposalSe
   const result = await sql<ProposalSeenRecord[]>`
     SELECT proposal_id::TEXT as proposal_id, topic, title, seen_at, notified
     FROM proposals_seen
-    ORDER BY seen_at DESC
+    ORDER BY proposal_id DESC
     LIMIT ${limit}
   `;
   return result;

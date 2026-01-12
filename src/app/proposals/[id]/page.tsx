@@ -1,8 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { BuildVerificationWidget } from "@/components/build-verification-widget";
 import { getProposal } from "@/lib/nns";
 import { getVerificationRunForProposal, getDashboardUrl } from "@/lib/github";
 
@@ -25,11 +32,19 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
 
   const dashboardUrl = getDashboardUrl(id);
 
+  // Determine if this is an upgrade code proposal by checking for WASM hash or canister ID
+  const isUpgradeProposal = !!(
+    proposal.expectedWasmHash || proposal.canisterId
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <div className="container mx-auto px-4 py-4">
-          <Link href="/" className="text-sm text-muted-foreground hover:underline">
+          <Link
+            href="/"
+            className="text-sm text-muted-foreground hover:underline"
+          >
             &larr; Back to proposals
           </Link>
         </div>
@@ -44,25 +59,21 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
           <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-2">
               <Button asChild>
-                <a href={dashboardUrl} target="_blank" rel="noopener noreferrer">
+                <a
+                  href={dashboardUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   View on IC Dashboard
                 </a>
               </Button>
-              {verificationRun && (
-                <Button variant="outline" asChild>
-                  <a href={verificationRun.htmlUrl} target="_blank" rel="noopener noreferrer">
-                    View Build Verification
-                    {verificationRun.conclusion && (
-                      <span className="ml-2">
-                        {verificationRun.conclusion === "success" ? "✓" : "✗"}
-                      </span>
-                    )}
-                  </a>
-                </Button>
-              )}
               {proposal.url && (
                 <Button variant="outline" asChild>
-                  <a href={proposal.url} target="_blank" rel="noopener noreferrer">
+                  <a
+                    href={proposal.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     Proposal URL
                   </a>
                 </Button>
@@ -71,64 +82,51 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
           </CardContent>
         </Card>
 
-        {/* Technical Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Technical Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              {proposal.canisterId && (
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Target Canister</p>
-                  <p className="font-mono text-sm break-all">{proposal.canisterId}</p>
-                </div>
-              )}
-              {proposal.commitHash && (
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Source Commit</p>
-                  <p className="font-mono text-sm break-all">{proposal.commitHash}</p>
-                </div>
-              )}
-              {proposal.expectedWasmHash && (
-                <div className="md:col-span-2">
-                  <p className="text-sm font-medium text-muted-foreground">Expected WASM Hash</p>
-                  <p className="font-mono text-sm break-all">{proposal.expectedWasmHash}</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Build Verification Widget - Always Present */}
+        <BuildVerificationWidget
+          isUpgradeProposal={isUpgradeProposal}
+          verificationRun={verificationRun}
+          proposalId={id}
+        />
 
-        {/* Verification Status */}
-        {verificationRun && (
+        {/* Technical Details - Only for upgrade proposals */}
+        {isUpgradeProposal && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Build Verification</CardTitle>
+              <CardTitle className="text-lg">Technical Details</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div
-                  className={`w-3 h-3 rounded-full ${
-                    verificationRun.status === "completed"
-                      ? verificationRun.conclusion === "success"
-                        ? "bg-green-500"
-                        : "bg-red-500"
-                      : "bg-yellow-500 animate-pulse"
-                  }`}
-                />
-                <div>
-                  <p className="font-medium">
-                    {verificationRun.status === "completed"
-                      ? verificationRun.conclusion === "success"
-                        ? "Build Verified"
-                        : "Verification Failed"
-                      : "Verification In Progress"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {verificationRun.displayTitle}
-                  </p>
-                </div>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                {proposal.canisterId && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Target Canister
+                    </p>
+                    <p className="font-mono text-sm break-all">
+                      {proposal.canisterId}
+                    </p>
+                  </div>
+                )}
+                {proposal.commitHash && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Source Commit
+                    </p>
+                    <p className="font-mono text-sm break-all">
+                      {proposal.commitHash}
+                    </p>
+                  </div>
+                )}
+                {proposal.expectedWasmHash && (
+                  <div className="md:col-span-2">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Expected WASM Hash
+                    </p>
+                    <p className="font-mono text-sm break-all">
+                      {proposal.expectedWasmHash}
+                    </p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -137,7 +135,9 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         {/* Summary */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">Summary</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Summary
+            </CardTitle>
           </CardHeader>
           <CardContent className="prose prose-sm dark:prose-invert max-w-none">
             <ReactMarkdown>{proposal.summary}</ReactMarkdown>
@@ -147,12 +147,15 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         {/* AI Summary Placeholder */}
         <Card className="border-dashed">
           <CardHeader>
-            <CardTitle className="text-lg text-muted-foreground">AI Summary</CardTitle>
+            <CardTitle className="text-lg text-muted-foreground">
+              AI Summary
+            </CardTitle>
             <CardDescription>Coming soon</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              An AI-generated summary of the code changes will appear here in a future update.
+              An AI-generated summary of the code changes will appear here in a
+              future update.
             </p>
           </CardContent>
         </Card>
