@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import ReactMarkdown from "react-markdown";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getProposal } from "@/lib/nns";
@@ -136,10 +137,10 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         {/* Summary */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Summary</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Summary</CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="whitespace-pre-wrap text-sm">{proposal.summary}</p>
+          <CardContent className="prose prose-sm dark:prose-invert max-w-none">
+            <ReactMarkdown>{proposal.summary}</ReactMarkdown>
           </CardContent>
         </Card>
 
