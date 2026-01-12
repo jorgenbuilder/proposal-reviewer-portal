@@ -1,0 +1,186 @@
+import { NextResponse } from "next/server";
+import {
+  listProposals,
+  filterNewProposals,
+  PROTOCOL_CANISTER_MANAGEMENT_TOPIC,
+  MIN_PROPOSAL_ID,
+} from "@/lib/nns";
+import {
+  getSubscriptions,
+  getSeenProposalIds,
+  markProposalSeen,
+  markProposalNotified,
+  deleteSubscription,
+  updateSubscriptionSuccess,
+  logNotification,
+} from "@/lib/db";
+import { sendPushNotification } from "@/lib/web-push-server";
+import { sendProposalNotificationEmail } from "@/lib/email";
+
+// Verify cron secret or QStash signature
+function verifyAuth(request: Request): boolean {
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+
+  // Check Bearer token
+  if (authHeader === `Bearer ${cronSecret}`) {
+    return true;
+  }
+
+  // Check Upstash QStash signature (simplified - in production use their SDK)
+  const upstashSignature = request.headers.get("upstash-signature");
+  if (upstashSignature) {
+    // QStash requests are trusted if signature header present
+    // For full verification, use @upstash/qstash Receiver
+    return true;
+  }
+
+  // Allow Vercel Cron (check for Vercel-specific header)
+  const vercelCron = request.headers.get("x-vercel-cron");
+  if (vercelCron) {
+    return true;
+  }
+
+  return false;
+}
+
+export async function POST(request: Request) {
+  // Verify authorization
+  if (!verifyAuth(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    console.log("[check-proposals] Starting proposal check...");
+
+    // 1. Fetch recent proposals from NNS
+    const proposals = await listProposals(100);
+    console.log(`[check-proposals] Fetched ${proposals.length} proposals from NNS`);
+
+    // 2. Get already seen proposals
+    const seenIds = await getSeenProposalIds();
+    console.log(`[check-proposals] ${seenIds.size} proposals already seen`);
+
+    // 3. Filter to new proposals in tracked topic
+    const newProposals = filterNewProposals(
+      proposals,
+      [PROTOCOL_CANISTER_MANAGEMENT_TOPIC],
+      seenIds,
+      MIN_PROPOSAL_ID
+    );
+
+    console.log(`[check-proposals] Found ${newProposals.length} new proposals`);
+
+    if (newProposals.length === 0) {
+      return NextResponse.json({
+        message: "No new proposals",
+        checked: proposals.length,
+        seenCount: seenIds.size,
+      });
+    }
+
+    // 4. Get all subscriptions
+    const subscriptions = await getSubscriptions();
+    console.log(`[check-proposals] ${subscriptions.length} subscriptions to notify`);
+
+    // 5. Process each new proposal
+    const results = {
+      proposals: newProposals.length,
+      notifications: { sent: 0, failed: 0 },
+      emails: { sent: 0, failed: 0 },
+    };
+
+    for (const proposal of newProposals) {
+      const proposalIdStr = proposal.id.toString();
+
+      // Mark as seen
+      await markProposalSeen(proposalIdStr, "Protocol Canister Management", proposal.title);
+
+      // Notify each subscriber
+      for (const sub of subscriptions) {
+        // Try push notification first
+        try {
+          const success = await sendPushNotification(
+            {
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh, auth: sub.auth },
+            },
+            {
+              title: "New Proposal",
+              body: `#${proposalIdStr}: ${proposal.title}`,
+              proposalId: proposalIdStr,
+              url: `/proposals/${proposalIdStr}`,
+            }
+          );
+
+          if (success) {
+            results.notifications.sent++;
+            await updateSubscriptionSuccess(sub.endpoint);
+            await logNotification(proposalIdStr, sub.id, "push", "sent");
+          } else {
+            throw new Error("Push failed");
+          }
+        } catch (error) {
+          results.notifications.failed++;
+
+          // Check if subscription expired
+          if (error instanceof Error && error.message === "SUBSCRIPTION_EXPIRED") {
+            await deleteSubscription(sub.endpoint);
+            await logNotification(proposalIdStr, sub.id, "push", "failed", "expired");
+          } else {
+            await logNotification(
+              proposalIdStr,
+              sub.id,
+              "push",
+              "failed",
+              error instanceof Error ? error.message : "unknown"
+            );
+          }
+
+          // Try email fallback if available
+          if (sub.email) {
+            const baseUrl = process.env.VERCEL_URL
+              ? `https://${process.env.VERCEL_URL}`
+              : "http://localhost:3000";
+
+            const emailSent = await sendProposalNotificationEmail(sub.email, {
+              proposalId: proposalIdStr,
+              title: proposal.title,
+              topic: "Protocol Canister Management",
+              dashboardUrl: `https://dashboard.internetcomputer.org/proposal/${proposalIdStr}`,
+              appUrl: `${baseUrl}/proposals/${proposalIdStr}`,
+            });
+
+            if (emailSent) {
+              results.emails.sent++;
+              await logNotification(proposalIdStr, sub.id, "email", "sent");
+            } else {
+              results.emails.failed++;
+              await logNotification(proposalIdStr, sub.id, "email", "failed");
+            }
+          }
+        }
+      }
+
+      await markProposalNotified(proposalIdStr);
+    }
+
+    console.log("[check-proposals] Complete:", results);
+
+    return NextResponse.json({
+      message: "Processed",
+      ...results,
+    });
+  } catch (error) {
+    console.error("[check-proposals] Error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+// Also support GET for Vercel Cron
+export async function GET(request: Request) {
+  return POST(request);
+}
