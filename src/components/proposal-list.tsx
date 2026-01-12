@@ -10,7 +10,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { registerServiceWorker } from "@/lib/push";
 
 interface Proposal {
   id: string;
@@ -58,49 +57,23 @@ export function ProposalList() {
     setTestResult(null);
 
     try {
-      const registration = await registerServiceWorker();
-      if (!registration) {
-        setTestResult({
-          type: "error",
-          message: "Service worker not registered",
-        });
-        return;
-      }
-
-      const subscription = await registration.pushManager.getSubscription();
-      if (!subscription) {
-        setTestResult({
-          type: "error",
-          message: "No push subscription found. Please re-enable notifications.",
-        });
-        return;
-      }
-
       const response = await fetch("/api/test-notification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subscription: subscription.toJSON(),
-          simulateFailure,
-        }),
+        body: JSON.stringify({ simulateFailure }),
       });
 
       const data = await response.json();
 
-      if (simulateFailure && data.simulated) {
-        setTestResult({
-          type: "info",
-          message: data.message,
-        });
-      } else if (data.success) {
+      if (data.success) {
         setTestResult({
           type: "success",
-          message: "Notification sent! Check your device.",
+          message: data.message,
         });
-      } else if (data.expired) {
+      } else if (response.status === 404) {
         setTestResult({
           type: "error",
-          message: data.message,
+          message: "No subscriptions found. Please enable notifications first.",
         });
       } else {
         setTestResult({

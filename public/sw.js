@@ -30,15 +30,15 @@ self.addEventListener("push", (event) => {
   if (event.data) {
     try {
       data = event.data.json();
+      console.log("[SW] Push data:", data);
     } catch (e) {
+      console.log("[SW] Push data parse error, using text:", e);
       data.body = event.data.text();
     }
   }
 
   const options = {
     body: data.body,
-    icon: "/icon.svg",
-    badge: "/icon.svg",
     tag: data.proposalId ? `proposal-${data.proposalId}` : "proposal-notification",
     requireInteraction: true,
     data: {
@@ -47,7 +47,13 @@ self.addEventListener("push", (event) => {
     },
   };
 
-  event.waitUntil(self.registration.showNotification(data.title, options));
+  console.log("[SW] Showing notification:", data.title, options);
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+      .then(() => console.log("[SW] Notification shown successfully"))
+      .catch((err) => console.error("[SW] Failed to show notification:", err))
+  );
 });
 
 // Notification click event - open the relevant page
