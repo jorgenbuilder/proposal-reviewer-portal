@@ -12,10 +12,8 @@ import { Button } from "@/components/ui/button";
 import { BuildVerificationWidget } from "@/components/build-verification-widget";
 import { getProposal } from "@/lib/nns";
 import { getVerificationRunForProposal, getDashboardUrl } from "@/lib/github";
-import {
-  findForumTopicForProposal,
-  getForumCategoryUrl,
-} from "@/lib/forum";
+import { getForumCategoryUrl } from "@/lib/forum";
+import { findForumTopicWithAI } from "@/lib/forum-ai";
 
 interface ProposalPageProps {
   params: Promise<{ id: string }>;
@@ -25,11 +23,19 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
   const { id } = await params;
   const proposalId = BigInt(id);
 
-  const [proposal, verificationRun, forumTopic] = await Promise.all([
+  const [proposal, verificationRun] = await Promise.all([
     getProposal(proposalId),
     getVerificationRunForProposal(id),
-    findForumTopicForProposal(id),
   ]);
+
+  // Fetch forum topic after we have proposal details for better AI matching
+  const forumResult = proposal
+    ? await findForumTopicWithAI(
+        id,
+        proposal.title,
+        "Protocol Canister Management"
+      )
+    : { found: false };
 
   if (!proposal) {
     notFound();
@@ -93,18 +99,23 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
           <CardHeader>
             <CardTitle className="text-lg">Forum Discussion</CardTitle>
             <CardDescription>
-              {forumTopic
+              {forumResult.found
                 ? "Join the community discussion about this proposal"
                 : "No forum post found yet for this proposal"}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {forumTopic ? (
+            {forumResult.found && forumResult.topic ? (
               <div className="space-y-3">
-                <p className="text-sm font-medium">{forumTopic.title}</p>
+                <p className="text-sm font-medium">{forumResult.topic.title}</p>
+                {forumResult.confidence && (
+                  <p className="text-xs text-muted-foreground">
+                    Match confidence: {forumResult.confidence}
+                  </p>
+                )}
                 <Button variant="outline" asChild>
                   <a
-                    href={forumTopic.url}
+                    href={forumResult.topic.url}
                     target="_blank"
                     rel="noopener noreferrer"
                   >

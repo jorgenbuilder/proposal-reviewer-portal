@@ -10,6 +10,13 @@ export interface ForumTopic {
   createdAt: string;
 }
 
+export interface ForumSearchResult {
+  found: boolean;
+  topic?: ForumTopic;
+  confidence?: "high" | "medium" | "low";
+  reason?: string;
+}
+
 export function getForumCategoryUrl(): string {
   return `${FORUM_BASE_URL}/c/${NNS_PROPOSAL_CATEGORY_SLUG}/${NNS_PROPOSAL_CATEGORY_ID}`;
 }
@@ -18,34 +25,29 @@ export function getForumTopicUrl(slug: string, id: number): string {
   return `${FORUM_BASE_URL}/t/${slug}/${id}`;
 }
 
+// Simple search fallback (used if Gemini is not available)
 export async function findForumTopicForProposal(
   proposalId: string
 ): Promise<ForumTopic | null> {
   try {
-    // Search the forum for topics containing the proposal ID in the NNS proposal category
     const searchUrl = `${FORUM_BASE_URL}/search.json?q=${encodeURIComponent(
       `${proposalId} #${NNS_PROPOSAL_CATEGORY_SLUG}`
     )}`;
 
     const response = await fetch(searchUrl, {
-      headers: {
-        Accept: "application/json",
-      },
-      next: { revalidate: 300 }, // Cache for 5 minutes
+      headers: { Accept: "application/json" },
+      next: { revalidate: 300 },
     });
 
     if (!response.ok) {
-      console.error("Forum search failed:", response.status);
       return null;
     }
 
     const data = await response.json();
-
-    // Look for a topic that contains the proposal ID in its title
     const topics = data.topics || [];
+
     const matchingTopic = topics.find((topic: { title: string }) => {
       const title = topic.title.toLowerCase();
-      // Match patterns like "#123456" or "123456" or "proposal 123456"
       return (
         title.includes(`#${proposalId}`) ||
         title.includes(`proposal ${proposalId}`) ||
