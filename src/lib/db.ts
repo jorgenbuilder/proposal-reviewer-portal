@@ -39,6 +39,17 @@ export async function initDb() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS proposal_forum_threads (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      proposal_id TEXT NOT NULL,
+      forum_url TEXT NOT NULL,
+      thread_title TEXT,
+      added_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(proposal_id, forum_url)
+    )
+  `;
 }
 
 // Push subscription operations
@@ -143,4 +154,50 @@ export async function logNotification(
     INSERT INTO notification_log (proposal_id, subscription_id, channel, status, error)
     VALUES (${proposalId}, ${subscriptionId}, ${channel}, ${status}, ${error || null})
   `;
+}
+
+// Forum thread operations
+export interface ProposalForumThread {
+  id: string;
+  proposal_id: string;
+  forum_url: string;
+  thread_title: string | null;
+  added_at: Date;
+}
+
+export async function addForumThread(
+  proposalId: string,
+  forumUrl: string,
+  threadTitle?: string
+): Promise<ProposalForumThread> {
+  const result = await sql<ProposalForumThread[]>`
+    INSERT INTO proposal_forum_threads (proposal_id, forum_url, thread_title)
+    VALUES (${proposalId}, ${forumUrl}, ${threadTitle || null})
+    ON CONFLICT (proposal_id, forum_url) DO UPDATE SET
+      thread_title = COALESCE(${threadTitle || null}, proposal_forum_threads.thread_title)
+    RETURNING id, proposal_id, forum_url, thread_title, added_at
+  `;
+  return result[0];
+}
+
+export async function removeForumThread(
+  proposalId: string,
+  forumUrl: string
+): Promise<void> {
+  await sql`
+    DELETE FROM proposal_forum_threads
+    WHERE proposal_id = ${proposalId} AND forum_url = ${forumUrl}
+  `;
+}
+
+export async function getForumThreadsForProposal(
+  proposalId: string
+): Promise<ProposalForumThread[]> {
+  const result = await sql<ProposalForumThread[]>`
+    SELECT id, proposal_id, forum_url, thread_title, added_at
+    FROM proposal_forum_threads
+    WHERE proposal_id = ${proposalId}
+    ORDER BY added_at DESC
+  `;
+  return result;
 }

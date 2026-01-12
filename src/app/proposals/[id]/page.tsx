@@ -10,10 +10,10 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BuildVerificationWidget } from "@/components/build-verification-widget";
+import { ForumLinksWidget } from "@/components/forum-links-widget";
 import { getProposal } from "@/lib/nns";
 import { getVerificationRunForProposal, getDashboardUrl } from "@/lib/github";
 import { getForumCategoryUrl } from "@/lib/forum";
-import { findForumTopicWithAI } from "@/lib/forum-ai";
 
 interface ProposalPageProps {
   params: Promise<{ id: string }>;
@@ -27,15 +27,6 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
     getProposal(proposalId),
     getVerificationRunForProposal(id),
   ]);
-
-  // Fetch forum topic after we have proposal details for better AI matching
-  const forumResult = proposal
-    ? await findForumTopicWithAI(
-        id,
-        proposal.title,
-        "Protocol Canister Management"
-      )
-    : { found: false };
 
   if (!proposal) {
     notFound();
@@ -94,55 +85,11 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
           </CardContent>
         </Card>
 
-        {/* Forum Discussion */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Forum Discussion</CardTitle>
-            <CardDescription>
-              {forumResult.found
-                ? "Join the community discussion about this proposal"
-                : "No forum post found yet for this proposal"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {forumResult.found && forumResult.topic ? (
-              <div className="space-y-3">
-                <p className="text-sm font-medium">{forumResult.topic.title}</p>
-                {forumResult.confidence && (
-                  <p className="text-xs text-muted-foreground">
-                    Match confidence: {forumResult.confidence}
-                  </p>
-                )}
-                <Button variant="outline" asChild>
-                  <a
-                    href={forumResult.topic.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    View Forum Discussion
-                  </a>
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  A forum post for this proposal has not been created yet, or
-                  could not be found. Check the NNS Proposal Discussions
-                  category for updates.
-                </p>
-                <Button variant="outline" asChild>
-                  <a
-                    href={forumCategoryUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Browse NNS Proposal Discussions
-                  </a>
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Forum Discussion - Client Component */}
+        <ForumLinksWidget
+          proposalId={id}
+          forumCategoryUrl={forumCategoryUrl}
+        />
 
         {/* Build Verification Widget - Always Present */}
         <BuildVerificationWidget
