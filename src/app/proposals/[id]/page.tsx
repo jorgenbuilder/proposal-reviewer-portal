@@ -12,6 +12,10 @@ import { Button } from "@/components/ui/button";
 import { BuildVerificationWidget } from "@/components/build-verification-widget";
 import { getProposal } from "@/lib/nns";
 import { getVerificationRunForProposal, getDashboardUrl } from "@/lib/github";
+import {
+  findForumTopicForProposal,
+  getForumCategoryUrl,
+} from "@/lib/forum";
 
 interface ProposalPageProps {
   params: Promise<{ id: string }>;
@@ -21,9 +25,10 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
   const { id } = await params;
   const proposalId = BigInt(id);
 
-  const [proposal, verificationRun] = await Promise.all([
+  const [proposal, verificationRun, forumTopic] = await Promise.all([
     getProposal(proposalId),
     getVerificationRunForProposal(id),
+    findForumTopicForProposal(id),
   ]);
 
   if (!proposal) {
@@ -31,6 +36,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
   }
 
   const dashboardUrl = getDashboardUrl(id);
+  const forumCategoryUrl = getForumCategoryUrl();
 
   // Determine if this is an upgrade code proposal by checking for WASM hash or canister ID
   const isUpgradeProposal = !!(
@@ -79,6 +85,51 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
                 </Button>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Forum Discussion */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Forum Discussion</CardTitle>
+            <CardDescription>
+              {forumTopic
+                ? "Join the community discussion about this proposal"
+                : "No forum post found yet for this proposal"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {forumTopic ? (
+              <div className="space-y-3">
+                <p className="text-sm font-medium">{forumTopic.title}</p>
+                <Button variant="outline" asChild>
+                  <a
+                    href={forumTopic.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    View Forum Discussion
+                  </a>
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  A forum post for this proposal has not been created yet, or
+                  could not be found. Check the NNS Proposal Discussions
+                  category for updates.
+                </p>
+                <Button variant="outline" asChild>
+                  <a
+                    href={forumCategoryUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Browse NNS Proposal Discussions
+                  </a>
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
