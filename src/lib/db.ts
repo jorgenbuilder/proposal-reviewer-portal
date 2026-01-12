@@ -1,4 +1,8 @@
-import { sql } from "@vercel/postgres";
+import postgres from "postgres";
+
+const sql = postgres(process.env.DATABASE_URL!, {
+  ssl: "require",
+});
 
 // Initialize database tables
 export async function initDb() {
@@ -65,10 +69,10 @@ export async function saveSubscription(
 }
 
 export async function getSubscriptions(): Promise<PushSubscriptionRecord[]> {
-  const result = await sql<PushSubscriptionRecord>`
+  const result = await sql<PushSubscriptionRecord[]>`
     SELECT * FROM push_subscriptions
   `;
-  return result.rows;
+  return result;
 }
 
 export async function deleteSubscription(endpoint: string): Promise<void> {
@@ -105,10 +109,10 @@ export async function markProposalSeen(
 }
 
 export async function getSeenProposalIds(): Promise<Set<string>> {
-  const result = await sql<{ proposal_id: string }>`
+  const result = await sql<{ proposal_id: string }[]>`
     SELECT proposal_id::TEXT FROM proposals_seen
   `;
-  return new Set(result.rows.map((r) => r.proposal_id));
+  return new Set(result.map((r) => r.proposal_id));
 }
 
 export async function markProposalNotified(proposalId: string): Promise<void> {
@@ -118,13 +122,13 @@ export async function markProposalNotified(proposalId: string): Promise<void> {
 }
 
 export async function getRecentProposals(limit: number = 50): Promise<ProposalSeenRecord[]> {
-  const result = await sql<ProposalSeenRecord>`
+  const result = await sql<ProposalSeenRecord[]>`
     SELECT proposal_id::TEXT as proposal_id, topic, title, seen_at, notified
     FROM proposals_seen
     ORDER BY seen_at DESC
     LIMIT ${limit}
   `;
-  return result.rows;
+  return result;
 }
 
 // Notification log operations
