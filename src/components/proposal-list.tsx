@@ -26,6 +26,7 @@ interface Proposal {
   viewerSeenAt: string | null;
   reviewForumUrl: string | null;
   reviewedAt: string | null;
+  commentaryTitle: string | null;
 }
 
 async function fetchProposals(): Promise<Proposal[]> {
@@ -291,9 +292,16 @@ function ProposalCard({ proposal }: { proposal: Proposal }) {
                 #{proposal.id}: {proposal.title}
               </a>
             </CardTitle>
-            <CardDescription className="flex items-center gap-3">
-              <span>{proposal.topic}</span>
-              <VerificationStatusIndicator status={proposal.verificationStatus} />
+            <CardDescription className="space-y-1">
+              <div className="flex items-center gap-3">
+                <span>{proposal.topic}</span>
+                <VerificationStatusIndicator status={proposal.verificationStatus} />
+              </div>
+              {proposal.commentaryTitle && (
+                <div className="text-xs italic text-muted-foreground/80">
+                  AI: {proposal.commentaryTitle}
+                </div>
+              )}
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">

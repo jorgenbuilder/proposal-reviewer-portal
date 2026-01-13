@@ -334,3 +334,32 @@ export async function getCommentaryCount(proposalId: string): Promise<number> {
   if (error) throw error
   return count || 0
 }
+
+export async function getLatestCommentaryTitles(
+  proposalIds: string[]
+): Promise<Map<string, string>> {
+  if (proposalIds.length === 0) return new Map()
+
+  // Query to get the latest commentary title for each proposal
+  const { data, error } = await supabase
+    .from('proposal_commentaries')
+    .select('proposal_id, title, created_at')
+    .in('proposal_id', proposalIds.map(id => parseInt(id, 10)))
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+
+  // Build a map of proposal_id -> latest commentary title
+  const titleMap = new Map<string, string>()
+  const seen = new Set<number>()
+
+  for (const row of data || []) {
+    // Only keep the first (most recent) title for each proposal
+    if (!seen.has(row.proposal_id) && row.title) {
+      titleMap.set(row.proposal_id.toString(), row.title)
+      seen.add(row.proposal_id)
+    }
+  }
+
+  return titleMap
+}

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getRecentProposals } from "@/lib/db";
+import { getRecentProposals, getLatestCommentaryTitles } from "@/lib/db";
 import { getVerificationStatusForProposals, VerificationStatus } from "@/lib/github";
 
 export interface ProposalResponse {
@@ -15,6 +15,7 @@ export interface ProposalResponse {
   viewerSeenAt: string | null;
   reviewForumUrl: string | null;
   reviewedAt: string | null;
+  commentaryTitle: string | null;
 }
 
 export async function GET() {
@@ -22,12 +23,16 @@ export async function GET() {
     const proposals = await getRecentProposals(50);
     const proposalIds = proposals.map((p) => p.proposal_id);
 
-    // Batch fetch verification statuses
-    const verificationMap = await getVerificationStatusForProposals(proposalIds);
+    // Batch fetch verification statuses and commentary titles
+    const [verificationMap, commentaryTitleMap] = await Promise.all([
+      getVerificationStatusForProposals(proposalIds),
+      getLatestCommentaryTitles(proposalIds),
+    ]);
 
     return NextResponse.json({
       proposals: proposals.map((p): ProposalResponse => {
         const verification = verificationMap.get(p.proposal_id);
+        const commentaryTitle = commentaryTitleMap.get(p.proposal_id);
         return {
           id: p.proposal_id,
           title: p.title || "Untitled",
@@ -41,6 +46,7 @@ export async function GET() {
           viewerSeenAt: p.viewer_seen_at,
           reviewForumUrl: p.review_forum_url,
           reviewedAt: p.reviewed_at,
+          commentaryTitle: commentaryTitle || null,
         };
       }),
     });
