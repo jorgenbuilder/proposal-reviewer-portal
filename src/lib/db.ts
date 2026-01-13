@@ -4,6 +4,8 @@ import type {
   ProposalSeen,
   ProposalForumThread
 } from './supabase/types'
+import type { CommentaryData, CommentaryWithMetadata } from '@/types/commentary'
+import type { Json } from './supabase/types'
 
 // Re-export types for backwards compatibility
 export type PushSubscriptionRecord = PushSubscription
@@ -244,4 +246,91 @@ export async function getProposalReviewStatus(
     reviewForumUrl: data.review_forum_url,
     reviewedAt: data.reviewed_at
   }
+}
+
+// Commentary operations
+
+export async function saveCommentary(
+  proposalId: string,
+  commentary: CommentaryData,
+  metadata?: {
+    cost_usd?: number
+    duration_ms?: number
+    turns?: number
+  }
+): Promise<{ id: string; created_at: string }> {
+  const { data, error } = await supabase
+    .from('proposal_commentaries')
+    .insert({
+      proposal_id: parseInt(proposalId, 10),
+      title: commentary.title,
+      canister_id: commentary.canister_id || null,
+      analysis_incomplete: commentary.analysis_incomplete,
+      incomplete_reason: commentary.incomplete_reason || null,
+      cost_usd: metadata?.cost_usd || null,
+      duration_ms: metadata?.duration_ms || null,
+      turns: metadata?.turns || null,
+      commentary_data: commentary as unknown as Json
+    })
+    .select('id, created_at')
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function getLatestCommentary(
+  proposalId: string
+): Promise<CommentaryWithMetadata | null> {
+  const { data, error } = await supabase
+    .from('proposal_commentaries')
+    .select('*')
+    .eq('proposal_id', parseInt(proposalId, 10))
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) return null
+
+  // Parse JSONB back to typed object
+  const commentaryData = data.commentary_data as unknown as CommentaryData
+
+  return {
+    ...commentaryData,
+    cost_usd: data.cost_usd ?? undefined,
+    duration_ms: data.duration_ms ?? undefined,
+    turns: data.turns ?? undefined,
+    created_at: data.created_at
+  }
+}
+
+export async function getAllCommentaries(
+  proposalId: string
+): Promise<CommentaryWithMetadata[]> {
+  const { data, error } = await supabase
+    .from('proposal_commentaries')
+    .select('*')
+    .eq('proposal_id', parseInt(proposalId, 10))
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+
+  return (data || []).map(row => ({
+    ...(row.commentary_data as unknown as CommentaryData),
+    cost_usd: row.cost_usd ?? undefined,
+    duration_ms: row.duration_ms ?? undefined,
+    turns: row.turns ?? undefined,
+    created_at: row.created_at
+  }))
+}
+
+export async function getCommentaryCount(proposalId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('proposal_commentaries')
+    .select('*', { count: 'exact', head: true })
+    .eq('proposal_id', parseInt(proposalId, 10))
+
+  if (error) throw error
+  return count || 0
 }

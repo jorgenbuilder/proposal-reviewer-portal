@@ -13,9 +13,11 @@ import { BuildVerificationWidget } from "@/components/build-verification-widget"
 import { ForumLinksWidget } from "@/components/forum-links-widget";
 import { ProposalSeenMarker } from "@/components/proposal-seen-marker";
 import { ReviewSubmitWidget } from "@/components/review-submit-widget";
+import { CommentaryWidget } from "@/components/commentary-widget";
 import { getProposal } from "@/lib/nns";
 import { getVerificationRunForProposal, getDashboardUrl } from "@/lib/github";
 import { getForumCategoryUrl } from "@/lib/forum";
+import { getLatestCommentary } from "@/lib/db";
 
 interface ProposalPageProps {
   params: Promise<{ id: string }>;
@@ -25,9 +27,10 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
   const { id } = await params;
   const proposalId = BigInt(id);
 
-  const [proposal, verificationRun] = await Promise.all([
+  const [proposal, verificationRun, commentary] = await Promise.all([
     getProposal(proposalId),
     getVerificationRunForProposal(id),
+    getLatestCommentary(id),
   ]);
 
   if (!proposal) {
@@ -161,21 +164,8 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
           </CardContent>
         </Card>
 
-        {/* AI Summary Placeholder */}
-        <Card className="border-dashed">
-          <CardHeader>
-            <CardTitle className="text-lg text-muted-foreground">
-              AI Summary
-            </CardTitle>
-            <CardDescription>Coming soon</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              An AI-generated summary of the code changes will appear here in a
-              future update.
-            </p>
-          </CardContent>
-        </Card>
+        {/* AI Commentary */}
+        <CommentaryWidget commentary={commentary} proposalId={id} />
       </main>
     </div>
   );
