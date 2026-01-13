@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RotateCw, Github, Check, Clock } from "lucide-react";
+import { RotateCw, Github, Check, Clock, Settings } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -107,11 +107,19 @@ export function ProposalList() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
-          <h1 className="text-xl font-semibold">ICP Proposal Reviewer</h1>
-          <p className="text-sm text-muted-foreground">
-            Protocol Canister Management Proposals
-          </p>
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold">ICP Proposal Reviewer</h1>
+            <p className="text-sm text-muted-foreground">
+              Protocol Canister Management Proposals
+            </p>
+          </div>
+          <Button variant="ghost" size="sm" asChild>
+            <a href="/admin/cookies" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Forum Cookies</span>
+            </a>
+          </Button>
         </div>
       </header>
 
