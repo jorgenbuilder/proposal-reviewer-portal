@@ -1,4 +1,5 @@
 import ReactMarkdown from "react-markdown"
+import type { Components } from "react-markdown"
 import {
   Card,
   CardContent,
@@ -7,6 +8,19 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import type { CommentaryWithMetadata } from "@/types/commentary"
+
+// Custom link component for ReactMarkdown
+// Opens external links in browser (not PWA) and styles them blue
+const markdownComponents: Components = {
+  a: ({ node, ...props }) => (
+    <a
+      {...props}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-600 dark:text-blue-400 hover:underline"
+    />
+  ),
+}
 
 interface CommentaryWidgetProps {
   commentary: CommentaryWithMetadata | null
@@ -157,7 +171,7 @@ export function CommentaryWidget({
         <div>
           <h3 className="font-semibold mb-2">Summary</h3>
           <div className="prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown>{commentary.overall_summary}</ReactMarkdown>
+            <ReactMarkdown components={markdownComponents}>{commentary.overall_summary}</ReactMarkdown>
           </div>
         </div>
 
@@ -166,7 +180,7 @@ export function CommentaryWidget({
           <div>
             <h3 className="font-semibold mb-2">Why Now</h3>
             <div className="prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown>{commentary.why_now}</ReactMarkdown>
+              <ReactMarkdown components={markdownComponents}>{commentary.why_now}</ReactMarkdown>
             </div>
           </div>
         )}
@@ -189,7 +203,7 @@ export function CommentaryWidget({
                       {shortHash}
                     </a>
                     <div className="prose prose-sm dark:prose-invert max-w-none mt-1">
-                      <ReactMarkdown>{commit.summary}</ReactMarkdown>
+                      <ReactMarkdown components={markdownComponents}>{commit.summary}</ReactMarkdown>
                     </div>
                   </div>
                 )
@@ -214,7 +228,7 @@ export function CommentaryWidget({
                     {file.file_path}
                   </code>
                   <div className="prose prose-sm dark:prose-invert max-w-none mt-2">
-                    <ReactMarkdown>{file.summary}</ReactMarkdown>
+                    <ReactMarkdown components={markdownComponents}>{file.summary}</ReactMarkdown>
                   </div>
                 </div>
               ))}
@@ -227,8 +241,8 @@ export function CommentaryWidget({
           <div>
             <h3 className="font-semibold mb-2">Sources</h3>
             <div className="prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown>
-                {commentary.sources.map(formatSourceLink).join('\n')}
+              <ReactMarkdown components={markdownComponents}>
+                {commentary.sources.map(formatSourceLink).map(link => `- ${link}`).join('\n')}
               </ReactMarkdown>
             </div>
           </div>

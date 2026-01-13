@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
 import {
   Card,
   CardContent,
@@ -18,6 +19,19 @@ import { getProposal } from "@/lib/nns";
 import { getVerificationRunForProposal, getDashboardUrl } from "@/lib/github";
 import { getForumCategoryUrl } from "@/lib/forum";
 import { getLatestCommentary } from "@/lib/db";
+
+// Custom link component for ReactMarkdown
+// Opens external links in browser (not PWA) and styles them blue
+const markdownComponents: Components = {
+  a: ({ node, ...props }) => (
+    <a
+      {...props}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-600 dark:text-blue-400 hover:underline"
+    />
+  ),
+};
 
 interface ProposalPageProps {
   params: Promise<{ id: string }>;
@@ -160,7 +174,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown>{proposal.summary}</ReactMarkdown>
+            <ReactMarkdown components={markdownComponents}>{proposal.summary}</ReactMarkdown>
           </CardContent>
         </Card>
 
