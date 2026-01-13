@@ -440,12 +440,11 @@ function decryptData(encryptedHex: string): string {
 }
 
 export async function saveForumCookies(
-  cookies: ParsedCookie[],
+  cookieText: string,
   updatedBy?: string
 ): Promise<void> {
-  // Encrypt cookie data
-  const cookiesJson = JSON.stringify(cookies)
-  const encrypted = encryptData(cookiesJson)
+  // Encrypt raw cookie text
+  const encrypted = encryptData(cookieText)
 
   // Fixed UUID for single row
   const fixedId = '00000000-0000-0000-0000-000000000001'
@@ -462,7 +461,7 @@ export async function saveForumCookies(
   if (error) throw error
 }
 
-export async function getForumCookies(): Promise<ParsedCookie[] | null> {
+export async function getForumCookies(): Promise<string | null> {
   const { data, error } = await supabase
     .from('forum_cookies')
     .select('cookies_encrypted')
@@ -472,9 +471,8 @@ export async function getForumCookies(): Promise<ParsedCookie[] | null> {
   if (error) throw error
   if (!data) return null
 
-  // Decrypt cookie data
-  const decrypted = decryptData(data.cookies_encrypted)
-  return JSON.parse(decrypted) as ParsedCookie[]
+  // Decrypt and return raw cookie text
+  return decryptData(data.cookies_encrypted)
 }
 
 export async function clearForumCookies(): Promise<void> {

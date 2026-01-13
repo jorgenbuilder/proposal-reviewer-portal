@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { parseCookies, cookiesToHeaderString, validateCookies } from '@/lib/cookie-parser'
 import { saveForumCookies, getForumCookies, clearForumCookies } from '@/lib/db'
 
 /**
@@ -21,7 +20,7 @@ function verifyAuth(request: NextRequest): boolean {
 /**
  * GET: Retrieve cookies for GitHub Action
  * Auth: COMMENTARY_SECRET
- * Returns cookies as both header string and parsed format
+ * Returns raw cookie text for Claude Code to handle
  */
 export async function GET(request: NextRequest) {
   try {
@@ -31,22 +30,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const cookies = await getForumCookies()
+    const cookieText = await getForumCookies()
 
-    if (!cookies) {
+    if (!cookieText) {
       return NextResponse.json(
         { error: 'No cookies configured' },
         { status: 404 }
       )
     }
 
-    // Return as Cookie header string for easy use
-    const cookieHeader = cookiesToHeaderString(cookies)
-
+    // Return raw cookie text - Claude Code will handle parsing
     return NextResponse.json({
-      cookies: cookieHeader,
-      parsed: cookies, // Also include parsed format
-      count: cookies.length
+      cookies: cookieText
     })
   } catch (error) {
     console.error('[forum-cookies] Failed to retrieve cookies:', error)
@@ -83,37 +78,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Parse cookies
-    let parsed
-    try {
-      parsed = parseCookies(cookieText)
-      validateCookies(parsed)
-    } catch (err) {
+    if (cookieText.trim().length === 0) {
       return NextResponse.json(
-        {
-          error: 'Failed to parse cookies',
-          details: err instanceof Error ? err.message : 'Invalid format'
-        },
+        { error: 'Cookie text cannot be empty' },
         { status: 400 }
       )
     }
 
-    // Save to database
-    await saveForumCookies(parsed, 'admin')
+    // Save raw cookie text to database (encrypted)
+    await saveForumCookies(cookieText, 'admin')
 
-    console.log(`[forum-cookies] Updated ${parsed.length} cookies`)
+    console.log(`[forum-cookies] Updated cookies (${cookieText.length} characters)`)
 
-    // Return success with masked cookie info (don't return values)
+    // Return success
     return NextResponse.json({
       success: true,
-      count: parsed.length,
-      cookies: parsed.map((c) => ({
-        name: c.name,
-        domain: c.domain,
-        path: c.path,
-        expires: c.expires,
-        secure: c.secure
-      }))
+      length: cookieText.length
     })
   } catch (error) {
     console.error('[forum-cookies] Failed to save cookies:', error)
