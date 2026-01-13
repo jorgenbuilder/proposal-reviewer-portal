@@ -12,6 +12,9 @@ export interface ProposalResponse {
   proposalUrl: string | null;
   verificationStatus: VerificationStatus;
   verificationRunUrl: string | null;
+  viewerSeenAt: string | null;
+  reviewForumUrl: string | null;
+  reviewedAt: string | null;
 }
 
 export async function GET() {
@@ -35,6 +38,9 @@ export async function GET() {
           proposalUrl: p.proposal_url,
           verificationStatus: verification?.status || "pending",
           verificationRunUrl: verification?.runUrl || null,
+          viewerSeenAt: p.viewer_seen_at,
+          reviewForumUrl: p.review_forum_url,
+          reviewedAt: p.reviewed_at,
         };
       }),
     });

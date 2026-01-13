@@ -11,6 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { BuildVerificationWidget } from "@/components/build-verification-widget";
 import { ForumLinksWidget } from "@/components/forum-links-widget";
+import { ProposalSeenMarker } from "@/components/proposal-seen-marker";
+import { ReviewSubmitWidget } from "@/components/review-submit-widget";
 import { getProposal } from "@/lib/nns";
 import { getVerificationRunForProposal, getDashboardUrl } from "@/lib/github";
 import { getForumCategoryUrl } from "@/lib/forum";
@@ -54,6 +56,9 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
       </header>
 
       <main className="container mx-auto px-4 py-6 space-y-6">
+        {/* Mark proposal as seen when page loads */}
+        <ProposalSeenMarker proposalId={id} />
+
         <Card>
           <CardHeader>
             <CardDescription>Proposal #{id}</CardDescription>
@@ -90,6 +95,9 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
           proposalId={id}
           forumCategoryUrl={forumCategoryUrl}
         />
+
+        {/* Review Submission Widget */}
+        <ReviewSubmitWidget proposalId={id} />
 
         {/* Build Verification Widget - Always Present */}
         <BuildVerificationWidget

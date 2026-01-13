@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RotateCw, Github, Eye, EyeOff } from "lucide-react";
+import { RotateCw, Github, Check, Clock } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -23,6 +23,9 @@ interface Proposal {
   proposalUrl: string | null;
   verificationStatus: VerificationStatus;
   verificationRunUrl: string | null;
+  viewerSeenAt: string | null;
+  reviewForumUrl: string | null;
+  reviewedAt: string | null;
 }
 
 async function fetchProposals(): Promise<Proposal[]> {
@@ -220,6 +223,52 @@ function VerificationStatusIndicator({ status }: { status: VerificationStatus })
   );
 }
 
+function ReviewStatusIndicator({ proposal }: { proposal: Proposal }) {
+  // State 1: Not yet viewed by reviewer
+  if (!proposal.viewerSeenAt) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+        <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">New</span>
+      </div>
+    );
+  }
+
+  // State 2: Viewed but not reviewed
+  if (!proposal.reviewForumUrl) {
+    return (
+      <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+        <Clock className="h-3.5 w-3.5" />
+        <span className="text-xs font-medium">Pending review</span>
+      </div>
+    );
+  }
+
+  // State 3: Reviewed
+  const reviewedDate = proposal.reviewedAt ? new Date(proposal.reviewedAt) : null;
+  const formattedDate = reviewedDate
+    ? reviewedDate.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+      })
+    : null;
+
+  return (
+    <a
+      href={proposal.reviewForumUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-1.5 text-green-600 dark:text-green-400 hover:underline"
+      title={reviewedDate ? `Reviewed on ${reviewedDate.toLocaleString()}` : "Reviewed"}
+    >
+      <Check className="h-3.5 w-3.5" />
+      <span className="text-xs font-medium">
+        Reviewed{formattedDate && ` ${formattedDate}`}
+      </span>
+    </a>
+  );
+}
+
 function ProposalCard({ proposal }: { proposal: Proposal }) {
   const dashboardUrl = `https://dashboard.internetcomputer.org/proposal/${proposal.id}`;
 
@@ -230,8 +279,10 @@ function ProposalCard({ proposal }: { proposal: Proposal }) {
     ? `https://github.com/search?q=${proposal.commitHash}&type=commits`
     : null;
 
+  const isUnseen = !proposal.viewerSeenAt;
+
   return (
-    <Card>
+    <Card className={isUnseen ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-background" : ""}>
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
@@ -246,17 +297,7 @@ function ProposalCard({ proposal }: { proposal: Proposal }) {
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
-            {/* Review Status Indicator */}
-            <div
-              className="flex items-center gap-1 text-xs text-muted-foreground"
-              title={proposal.notified ? "Notification sent" : "Not yet notified"}
-            >
-              {proposal.notified ? (
-                <Eye className="h-3.5 w-3.5" />
-              ) : (
-                <EyeOff className="h-3.5 w-3.5" />
-              )}
-            </div>
+            <ReviewStatusIndicator proposal={proposal} />
           </div>
         </div>
       </CardHeader>

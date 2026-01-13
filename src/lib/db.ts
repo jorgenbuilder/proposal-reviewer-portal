@@ -185,3 +185,63 @@ export async function getForumThreadsForProposal(
   if (error) throw error
   return data || []
 }
+
+// Reviewer tracking operations
+
+export async function markProposalViewerSeen(proposalId: string): Promise<void> {
+  const { error } = await supabase
+    .from('proposals_seen')
+    .update({ viewer_seen_at: new Date().toISOString() })
+    .eq('proposal_id', parseInt(proposalId, 10))
+
+  if (error) throw error
+}
+
+export async function submitProposalReview(
+  proposalId: string,
+  forumUrl: string,
+  reviewedAt?: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('proposals_seen')
+    .update({
+      review_forum_url: forumUrl,
+      reviewed_at: reviewedAt || new Date().toISOString()
+    })
+    .eq('proposal_id', parseInt(proposalId, 10))
+
+  if (error) throw error
+}
+
+export async function clearProposalReview(proposalId: string): Promise<void> {
+  const { error } = await supabase
+    .from('proposals_seen')
+    .update({
+      review_forum_url: null,
+      reviewed_at: null
+    })
+    .eq('proposal_id', parseInt(proposalId, 10))
+
+  if (error) throw error
+}
+
+export async function getProposalReviewStatus(
+  proposalId: string
+): Promise<{ viewerSeenAt: string | null; reviewForumUrl: string | null; reviewedAt: string | null } | null> {
+  const { data, error } = await supabase
+    .from('proposals_seen')
+    .select('viewer_seen_at, review_forum_url, reviewed_at')
+    .eq('proposal_id', parseInt(proposalId, 10))
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') return null // Not found
+    throw error
+  }
+
+  return {
+    viewerSeenAt: data.viewer_seen_at,
+    reviewForumUrl: data.review_forum_url,
+    reviewedAt: data.reviewed_at
+  }
+}

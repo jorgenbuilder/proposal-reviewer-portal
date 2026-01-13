@@ -51,6 +51,9 @@ export type Database = {
           notified: boolean
           commit_hash: string | null
           proposal_url: string | null
+          viewer_seen_at: string | null
+          review_forum_url: string | null
+          reviewed_at: string | null
         }
         Insert: {
           proposal_id: number
@@ -60,6 +63,9 @@ export type Database = {
           notified?: boolean
           commit_hash?: string | null
           proposal_url?: string | null
+          viewer_seen_at?: string | null
+          review_forum_url?: string | null
+          reviewed_at?: string | null
         }
         Update: {
           proposal_id?: number
@@ -69,6 +75,9 @@ export type Database = {
           notified?: boolean
           commit_hash?: string | null
           proposal_url?: string | null
+          viewer_seen_at?: string | null
+          review_forum_url?: string | null
+          reviewed_at?: string | null
         }
         Relationships: []
       }
