@@ -6,7 +6,7 @@ export interface ProposalResponse {
   id: string;
   title: string;
   topic: string;
-  seenAt: Date;
+  seenAt: string;
   notified: boolean;
   commitHash: string | null;
   proposalUrl: string | null;

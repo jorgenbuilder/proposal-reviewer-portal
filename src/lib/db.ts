@@ -1,69 +1,16 @@
-import postgres from "postgres";
+import { supabase } from './supabase/client'
+import type {
+  PushSubscription,
+  ProposalSeen,
+  ProposalForumThread
+} from './supabase/types'
 
-const sql = postgres(process.env.POSTGRES_URL!, {
-  ssl: "require",
-});
-
-// Initialize database tables
-export async function initDb() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS push_subscriptions (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      endpoint TEXT UNIQUE NOT NULL,
-      p256dh TEXT NOT NULL,
-      auth TEXT NOT NULL,
-      email TEXT,
-      created_at TIMESTAMP DEFAULT NOW(),
-      last_success TIMESTAMP
-    )
-  `;
-
-  await sql`
-    CREATE TABLE IF NOT EXISTS proposals_seen (
-      proposal_id BIGINT PRIMARY KEY,
-      topic TEXT NOT NULL,
-      title TEXT,
-      seen_at TIMESTAMP DEFAULT NOW(),
-      notified BOOLEAN DEFAULT FALSE,
-      commit_hash TEXT,
-      proposal_url TEXT
-    )
-  `;
-
-  await sql`
-    CREATE TABLE IF NOT EXISTS notification_log (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      proposal_id BIGINT NOT NULL,
-      subscription_id UUID NOT NULL,
-      channel TEXT NOT NULL,
-      status TEXT NOT NULL,
-      error TEXT,
-      created_at TIMESTAMP DEFAULT NOW()
-    )
-  `;
-
-  await sql`
-    CREATE TABLE IF NOT EXISTS proposal_forum_threads (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      proposal_id TEXT NOT NULL,
-      forum_url TEXT NOT NULL,
-      thread_title TEXT,
-      added_at TIMESTAMP DEFAULT NOW(),
-      UNIQUE(proposal_id, forum_url)
-    )
-  `;
-}
+// Re-export types for backwards compatibility
+export type PushSubscriptionRecord = PushSubscription
+export type ProposalSeenRecord = Omit<ProposalSeen, 'proposal_id'> & { proposal_id: string }
+export type { ProposalForumThread }
 
 // Push subscription operations
-export interface PushSubscriptionRecord {
-  id: string;
-  endpoint: string;
-  p256dh: string;
-  auth: string;
-  email: string | null;
-  created_at: Date;
-  last_success: Date | null;
-}
 
 export async function saveSubscription(
   endpoint: string,
@@ -71,45 +18,44 @@ export async function saveSubscription(
   auth: string,
   email?: string
 ): Promise<void> {
-  await sql`
-    INSERT INTO push_subscriptions (endpoint, p256dh, auth, email)
-    VALUES (${endpoint}, ${p256dh}, ${auth}, ${email || null})
-    ON CONFLICT (endpoint) DO UPDATE SET
-      p256dh = ${p256dh},
-      auth = ${auth},
-      email = COALESCE(${email || null}, push_subscriptions.email)
-  `;
+  const { error } = await supabase
+    .from('push_subscriptions')
+    .upsert(
+      { endpoint, p256dh, auth, email: email || null },
+      { onConflict: 'endpoint' }
+    )
+
+  if (error) throw error
 }
 
 export async function getSubscriptions(): Promise<PushSubscriptionRecord[]> {
-  const result = await sql<PushSubscriptionRecord[]>`
-    SELECT * FROM push_subscriptions
-  `;
-  return result;
+  const { data, error } = await supabase
+    .from('push_subscriptions')
+    .select('*')
+
+  if (error) throw error
+  return data || []
 }
 
 export async function deleteSubscription(endpoint: string): Promise<void> {
-  await sql`
-    DELETE FROM push_subscriptions WHERE endpoint = ${endpoint}
-  `;
+  const { error } = await supabase
+    .from('push_subscriptions')
+    .delete()
+    .eq('endpoint', endpoint)
+
+  if (error) throw error
 }
 
 export async function updateSubscriptionSuccess(endpoint: string): Promise<void> {
-  await sql`
-    UPDATE push_subscriptions SET last_success = NOW() WHERE endpoint = ${endpoint}
-  `;
+  const { error } = await supabase
+    .from('push_subscriptions')
+    .update({ last_success: new Date().toISOString() })
+    .eq('endpoint', endpoint)
+
+  if (error) throw error
 }
 
 // Proposal tracking operations
-export interface ProposalSeenRecord {
-  proposal_id: string;
-  topic: string;
-  title: string | null;
-  seen_at: Date;
-  notified: boolean;
-  commit_hash: string | null;
-  proposal_url: string | null;
-}
 
 export async function markProposalSeen(
   proposalId: string,
@@ -118,92 +64,124 @@ export async function markProposalSeen(
   commitHash?: string | null,
   proposalUrl?: string | null
 ): Promise<void> {
-  await sql`
-    INSERT INTO proposals_seen (proposal_id, topic, title, commit_hash, proposal_url)
-    VALUES (${proposalId}, ${topic}, ${title}, ${commitHash || null}, ${proposalUrl || null})
-    ON CONFLICT (proposal_id) DO NOTHING
-  `;
+  const { error } = await supabase
+    .from('proposals_seen')
+    .upsert(
+      {
+        proposal_id: parseInt(proposalId, 10),
+        topic,
+        title,
+        commit_hash: commitHash || null,
+        proposal_url: proposalUrl || null
+      },
+      { onConflict: 'proposal_id', ignoreDuplicates: true }
+    )
+
+  if (error) throw error
 }
 
 export async function getSeenProposalIds(): Promise<Set<string>> {
-  const result = await sql<{ proposal_id: string }[]>`
-    SELECT proposal_id::TEXT FROM proposals_seen
-  `;
-  return new Set(result.map((r) => r.proposal_id));
+  const { data, error } = await supabase
+    .from('proposals_seen')
+    .select('proposal_id')
+
+  if (error) throw error
+  return new Set((data || []).map(r => r.proposal_id.toString()))
 }
 
 export async function markProposalNotified(proposalId: string): Promise<void> {
-  await sql`
-    UPDATE proposals_seen SET notified = TRUE WHERE proposal_id = ${proposalId}
-  `;
+  const { error } = await supabase
+    .from('proposals_seen')
+    .update({ notified: true })
+    .eq('proposal_id', parseInt(proposalId, 10))
+
+  if (error) throw error
 }
 
 export async function getRecentProposals(limit: number = 50): Promise<ProposalSeenRecord[]> {
-  const result = await sql<ProposalSeenRecord[]>`
-    SELECT proposal_id::TEXT as proposal_id, topic, title, seen_at, notified, commit_hash, proposal_url
-    FROM proposals_seen
-    ORDER BY proposal_id DESC
-    LIMIT ${limit}
-  `;
-  return result;
+  const { data, error } = await supabase
+    .from('proposals_seen')
+    .select('*')
+    .order('proposal_id', { ascending: false })
+    .limit(limit)
+
+  if (error) throw error
+
+  // Convert proposal_id from number to string for backwards compatibility
+  return (data || []).map(row => ({
+    ...row,
+    proposal_id: row.proposal_id.toString()
+  }))
 }
 
 // Notification log operations
+
 export async function logNotification(
   proposalId: string,
   subscriptionId: string,
-  channel: "push" | "email",
-  status: "sent" | "failed" | "delivered",
+  channel: 'push' | 'email',
+  status: 'sent' | 'failed' | 'delivered',
   error?: string
 ): Promise<void> {
-  await sql`
-    INSERT INTO notification_log (proposal_id, subscription_id, channel, status, error)
-    VALUES (${proposalId}, ${subscriptionId}, ${channel}, ${status}, ${error || null})
-  `;
+  const { error: dbError } = await supabase
+    .from('notification_log')
+    .insert({
+      proposal_id: parseInt(proposalId, 10),
+      subscription_id: subscriptionId,
+      channel,
+      status,
+      error: error || null
+    })
+
+  if (dbError) throw dbError
 }
 
 // Forum thread operations
-export interface ProposalForumThread {
-  id: string;
-  proposal_id: string;
-  forum_url: string;
-  thread_title: string | null;
-  added_at: Date;
-}
 
 export async function addForumThread(
   proposalId: string,
   forumUrl: string,
   threadTitle?: string
 ): Promise<ProposalForumThread> {
-  const result = await sql<ProposalForumThread[]>`
-    INSERT INTO proposal_forum_threads (proposal_id, forum_url, thread_title)
-    VALUES (${proposalId}, ${forumUrl}, ${threadTitle || null})
-    ON CONFLICT (proposal_id, forum_url) DO UPDATE SET
-      thread_title = COALESCE(${threadTitle || null}, proposal_forum_threads.thread_title)
-    RETURNING id, proposal_id, forum_url, thread_title, added_at
-  `;
-  return result[0];
+  const { data, error } = await supabase
+    .from('proposal_forum_threads')
+    .upsert(
+      {
+        proposal_id: proposalId,
+        forum_url: forumUrl,
+        thread_title: threadTitle || null
+      },
+      { onConflict: 'proposal_id,forum_url' }
+    )
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
 }
 
 export async function removeForumThread(
   proposalId: string,
   forumUrl: string
 ): Promise<void> {
-  await sql`
-    DELETE FROM proposal_forum_threads
-    WHERE proposal_id = ${proposalId} AND forum_url = ${forumUrl}
-  `;
+  const { error } = await supabase
+    .from('proposal_forum_threads')
+    .delete()
+    .eq('proposal_id', proposalId)
+    .eq('forum_url', forumUrl)
+
+  if (error) throw error
 }
 
 export async function getForumThreadsForProposal(
   proposalId: string
 ): Promise<ProposalForumThread[]> {
-  const result = await sql<ProposalForumThread[]>`
-    SELECT id, proposal_id, forum_url, thread_title, added_at
-    FROM proposal_forum_threads
-    WHERE proposal_id = ${proposalId}
-    ORDER BY added_at DESC
-  `;
-  return result;
+  const { data, error } = await supabase
+    .from('proposal_forum_threads')
+    .select('*')
+    .eq('proposal_id', proposalId)
+    .order('added_at', { ascending: false })
+
+  if (error) throw error
+  return data || []
 }
