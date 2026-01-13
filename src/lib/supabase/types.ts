@@ -135,6 +135,48 @@ export type Database = {
         }
         Relationships: []
       }
+      proposal_commentaries: {
+        Row: {
+          id: string
+          proposal_id: number
+          title: string | null
+          canister_id: string | null
+          analysis_incomplete: boolean
+          incomplete_reason: string | null
+          cost_usd: number | null
+          duration_ms: number | null
+          turns: number | null
+          commentary_data: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          proposal_id: number
+          title?: string | null
+          canister_id?: string | null
+          analysis_incomplete?: boolean
+          incomplete_reason?: string | null
+          cost_usd?: number | null
+          duration_ms?: number | null
+          turns?: number | null
+          commentary_data: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          proposal_id?: number
+          title?: string | null
+          canister_id?: string | null
+          analysis_incomplete?: boolean
+          incomplete_reason?: string | null
+          cost_usd?: number | null
+          duration_ms?: number | null
+          turns?: number | null
+          commentary_data?: Json
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -156,3 +198,4 @@ export type PushSubscription = Database['public']['Tables']['push_subscriptions'
 export type ProposalSeen = Database['public']['Tables']['proposals_seen']['Row']
 export type NotificationLog = Database['public']['Tables']['notification_log']['Row']
 export type ProposalForumThread = Database['public']['Tables']['proposal_forum_threads']['Row']
+export type ProposalCommentary = Database['public']['Tables']['proposal_commentaries']['Row']
