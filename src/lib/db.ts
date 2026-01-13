@@ -363,3 +363,149 @@ export async function getLatestCommentaryTitles(
 
   return titleMap
 }
+
+// Forum cookie operations
+
+import crypto from 'crypto'
+import type { ParsedCookie } from './cookie-parser'
+
+const ALGORITHM = 'aes-256-gcm'
+const IV_LENGTH = 16
+const AUTH_TAG_LENGTH = 16
+
+/**
+ * Encrypt data using AES-256-GCM
+ */
+function encryptData(text: string): string {
+  const key = process.env.COOKIE_ENCRYPTION_KEY
+  if (!key) {
+    throw new Error('COOKIE_ENCRYPTION_KEY environment variable not set')
+  }
+
+  // Convert hex string key to buffer
+  const keyBuffer = Buffer.from(key, 'hex')
+  if (keyBuffer.length !== 32) {
+    throw new Error('COOKIE_ENCRYPTION_KEY must be 32 bytes (64 hex characters)')
+  }
+
+  // Generate random IV
+  const iv = crypto.randomBytes(IV_LENGTH)
+
+  // Create cipher
+  const cipher = crypto.createCipheriv(ALGORITHM, keyBuffer, iv)
+
+  // Encrypt
+  let encrypted = cipher.update(text, 'utf8', 'hex')
+  encrypted += cipher.final('hex')
+
+  // Get auth tag
+  const authTag = cipher.getAuthTag()
+
+  // Combine: iv + authTag + encrypted (all as hex)
+  return iv.toString('hex') + authTag.toString('hex') + encrypted
+}
+
+/**
+ * Decrypt data encrypted with AES-256-GCM
+ */
+function decryptData(encryptedHex: string): string {
+  const key = process.env.COOKIE_ENCRYPTION_KEY
+  if (!key) {
+    throw new Error('COOKIE_ENCRYPTION_KEY environment variable not set')
+  }
+
+  // Convert hex string key to buffer
+  const keyBuffer = Buffer.from(key, 'hex')
+  if (keyBuffer.length !== 32) {
+    throw new Error('COOKIE_ENCRYPTION_KEY must be 32 bytes (64 hex characters)')
+  }
+
+  // Extract iv, authTag, and encrypted data
+  const ivHex = encryptedHex.slice(0, IV_LENGTH * 2)
+  const authTagHex = encryptedHex.slice(IV_LENGTH * 2, (IV_LENGTH + AUTH_TAG_LENGTH) * 2)
+  const encrypted = encryptedHex.slice((IV_LENGTH + AUTH_TAG_LENGTH) * 2)
+
+  const iv = Buffer.from(ivHex, 'hex')
+  const authTag = Buffer.from(authTagHex, 'hex')
+
+  // Create decipher
+  const decipher = crypto.createDecipheriv(ALGORITHM, keyBuffer, iv)
+  decipher.setAuthTag(authTag)
+
+  // Decrypt
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8')
+  decrypted += decipher.final('utf8')
+
+  return decrypted
+}
+
+export async function saveForumCookies(
+  cookies: ParsedCookie[],
+  updatedBy?: string
+): Promise<void> {
+  // Encrypt cookie data
+  const cookiesJson = JSON.stringify(cookies)
+  const encrypted = encryptData(cookiesJson)
+
+  // Fixed UUID for single row
+  const fixedId = '00000000-0000-0000-0000-000000000001'
+
+  const { error } = await supabase
+    .from('forum_cookies')
+    .upsert({
+      id: fixedId,
+      cookies_encrypted: encrypted,
+      updated_at: new Date().toISOString(),
+      updated_by: updatedBy || null
+    })
+
+  if (error) throw error
+}
+
+export async function getForumCookies(): Promise<ParsedCookie[] | null> {
+  const { data, error } = await supabase
+    .from('forum_cookies')
+    .select('cookies_encrypted')
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) return null
+
+  // Decrypt cookie data
+  const decrypted = decryptData(data.cookies_encrypted)
+  return JSON.parse(decrypted) as ParsedCookie[]
+}
+
+export async function clearForumCookies(): Promise<void> {
+  const fixedId = '00000000-0000-0000-0000-000000000001'
+
+  const { error } = await supabase
+    .from('forum_cookies')
+    .delete()
+    .eq('id', fixedId)
+
+  if (error) throw error
+}
+
+export async function logForumSearch(
+  proposalId: string,
+  searchQuery: string,
+  resultsCount: number,
+  selectedUrl: string | null,
+  status: 'success' | 'no_results' | 'auth_failed' | 'error',
+  errorMessage?: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('forum_search_log')
+    .insert({
+      proposal_id: proposalId,
+      search_query: searchQuery,
+      results_count: resultsCount,
+      selected_url: selectedUrl,
+      status,
+      error_message: errorMessage || null
+    })
+
+  if (error) throw error
+}

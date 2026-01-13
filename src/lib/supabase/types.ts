@@ -177,6 +177,60 @@ export type Database = {
         }
         Relationships: []
       }
+      forum_cookies: {
+        Row: {
+          id: string
+          cookies_encrypted: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          cookies_encrypted: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          cookies_encrypted?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      forum_search_log: {
+        Row: {
+          id: string
+          proposal_id: string
+          search_query: string
+          results_count: number
+          selected_url: string | null
+          status: string
+          error_message: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          proposal_id: string
+          search_query: string
+          results_count: number
+          selected_url?: string | null
+          status: string
+          error_message?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          proposal_id?: string
+          search_query?: string
+          results_count?: number
+          selected_url?: string | null
+          status?: string
+          error_message?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -199,3 +253,5 @@ export type ProposalSeen = Database['public']['Tables']['proposals_seen']['Row']
 export type NotificationLog = Database['public']['Tables']['notification_log']['Row']
 export type ProposalForumThread = Database['public']['Tables']['proposal_forum_threads']['Row']
 export type ProposalCommentary = Database['public']['Tables']['proposal_commentaries']['Row']
+export type ForumCookies = Database['public']['Tables']['forum_cookies']['Row']
+export type ForumSearchLog = Database['public']['Tables']['forum_search_log']['Row']

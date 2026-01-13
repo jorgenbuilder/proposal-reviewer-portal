@@ -25,7 +25,11 @@ const markdownComponents: Components = {
   code: ({ node, className, children, ...props }) => {
     const match = /language-(\w+)/.exec(className || "")
     const language = match ? match[1] : ""
-    const isInline = !className
+    const codeString = String(children).replace(/\n$/, "")
+
+    // Check if it's inline code: no className AND no newlines means inline
+    // Code blocks either have className (with language) or contain newlines
+    const isInline = !className && !String(children).includes('\n')
 
     if (isInline) {
       return (
@@ -39,7 +43,7 @@ const markdownComponents: Components = {
     }
 
     return (
-      <div className="my-4 rounded-lg overflow-hidden border border-border shadow-sm">
+      <div className="my-4 rounded-lg border border-border shadow-sm overflow-x-auto">
         <SyntaxHighlighter
           style={oneDark}
           language={language || "text"}
@@ -49,6 +53,7 @@ const markdownComponents: Components = {
             borderRadius: 0,
             fontSize: "0.875rem",
             fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+            overflowX: "auto",
           }}
           codeTagProps={{
             style: {
@@ -56,7 +61,7 @@ const markdownComponents: Components = {
             },
           }}
         >
-          {String(children).replace(/\n$/, "")}
+          {codeString}
         </SyntaxHighlighter>
       </div>
     )
@@ -64,18 +69,18 @@ const markdownComponents: Components = {
   // Headings with better styling
   h1: ({ node, ...props }) => (
     <h1
-      className="text-3xl font-bold mt-8 mb-4 pb-2 border-b border-border"
+      className="text-3xl font-bold mt-0 mb-4 pb-2 border-b border-border"
       {...props}
     />
   ),
   h2: ({ node, ...props }) => (
     <h2
-      className="text-2xl font-semibold mt-6 mb-3 pb-1.5 border-b border-border"
+      className="text-2xl font-semibold mt-4 mb-3 pb-1.5 border-b border-border"
       {...props}
     />
   ),
   h3: ({ node, ...props }) => (
-    <h3 className="text-xl font-semibold mt-5 mb-2" {...props} />
+    <h3 className="text-xl font-semibold mt-4 mb-2" {...props} />
   ),
   h4: ({ node, ...props }) => (
     <h4 className="text-lg font-semibold mt-4 mb-2" {...props} />
