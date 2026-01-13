@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { RotateCw, Github, Eye, EyeOff } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -10,14 +11,18 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import type { VerificationStatus } from "@/lib/github";
 
 interface Proposal {
   id: string;
   title: string;
   topic: string;
-  summary: string;
-  url: string;
   seenAt: string;
+  notified: boolean;
+  commitHash: string | null;
+  proposalUrl: string | null;
+  verificationStatus: VerificationStatus;
+  verificationRunUrl: string | null;
 }
 
 async function fetchProposals(): Promise<Proposal[]> {
@@ -33,8 +38,10 @@ export function ProposalList() {
   const {
     data: proposals = [],
     isLoading,
+    isFetching,
     error,
     dataUpdatedAt,
+    refetch,
   } = useQuery({
     queryKey: ["proposals"],
     queryFn: fetchProposals,
@@ -148,9 +155,17 @@ export function ProposalList() {
 
         {/* Last Updated */}
         {dataUpdatedAt > 0 && (
-          <p className="text-xs text-muted-foreground">
-            Last updated: {new Date(dataUpdatedAt).toLocaleTimeString()}
-          </p>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Last updated: {new Date(dataUpdatedAt).toLocaleTimeString()}</span>
+            <button
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="p-1 hover:bg-muted rounded-sm transition-colors disabled:opacity-50"
+              title="Refresh proposals"
+            >
+              <RotateCw className={`h-3 w-3 ${isFetching ? "animate-spin" : ""}`} />
+            </button>
+          </div>
         )}
 
         {/* Proposals List */}
@@ -188,8 +203,32 @@ export function ProposalList() {
   );
 }
 
+function VerificationStatusIndicator({ status }: { status: VerificationStatus }) {
+  const config = {
+    verified: { color: "bg-green-500", animate: false, label: "Verified" },
+    failed: { color: "bg-red-500", animate: false, label: "Failed" },
+    in_progress: { color: "bg-yellow-500", animate: true, label: "In Progress" },
+    pending: { color: "bg-gray-400 dark:bg-gray-600", animate: true, label: "Pending" },
+  };
+  const { color, animate, label } = config[status];
+
+  return (
+    <div className="flex items-center gap-1.5" title={`Verification: ${label}`}>
+      <div className={`w-2 h-2 rounded-full ${color} ${animate ? "animate-pulse" : ""}`} />
+      <span className="text-xs text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
 function ProposalCard({ proposal }: { proposal: Proposal }) {
   const dashboardUrl = `https://dashboard.internetcomputer.org/proposal/${proposal.id}`;
+
+  // Build GitHub diff URL from proposal URL if it's a GitHub URL
+  const githubDiffUrl = proposal.proposalUrl?.includes("github.com")
+    ? proposal.proposalUrl
+    : proposal.commitHash
+    ? `https://github.com/search?q=${proposal.commitHash}&type=commits`
+    : null;
 
   return (
     <Card>
@@ -201,15 +240,28 @@ function ProposalCard({ proposal }: { proposal: Proposal }) {
                 #{proposal.id}: {proposal.title}
               </a>
             </CardTitle>
-            <CardDescription>{proposal.topic}</CardDescription>
+            <CardDescription className="flex items-center gap-3">
+              <span>{proposal.topic}</span>
+              <VerificationStatusIndicator status={proposal.verificationStatus} />
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Review Status Indicator */}
+            <div
+              className="flex items-center gap-1 text-xs text-muted-foreground"
+              title={proposal.notified ? "Notification sent" : "Not yet notified"}
+            >
+              {proposal.notified ? (
+                <Eye className="h-3.5 w-3.5" />
+              ) : (
+                <EyeOff className="h-3.5 w-3.5" />
+              )}
+            </div>
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-          {proposal.summary}
-        </p>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-4 text-sm">
           <Button variant="outline" size="sm" asChild>
             <a href={`/proposals/${proposal.id}`}>View Details</a>
           </Button>
@@ -218,6 +270,18 @@ function ProposalCard({ proposal }: { proposal: Proposal }) {
               IC Dashboard
             </a>
           </Button>
+          {/* GitHub Diff Link */}
+          {proposal.commitHash && githubDiffUrl && (
+            <a
+              href={githubDiffUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+            >
+              <Github className="h-3 w-3" />
+              <span className="font-mono">{proposal.commitHash.slice(0, 7)}</span>
+            </a>
+          )}
         </div>
       </CardContent>
     </Card>

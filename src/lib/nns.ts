@@ -134,7 +134,7 @@ function bytesToHex(bytes: number[] | Uint8Array): string {
     .join("");
 }
 
-function extractCommitHash(text: string): string | null {
+export function extractCommitHash(text: string): string | null {
   const commitRegex = /\b([a-f0-9]{40})\b/gi;
   const match = text.match(commitRegex);
   return match ? match[0] : null;

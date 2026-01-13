@@ -24,7 +24,9 @@ export async function initDb() {
       topic TEXT NOT NULL,
       title TEXT,
       seen_at TIMESTAMP DEFAULT NOW(),
-      notified BOOLEAN DEFAULT FALSE
+      notified BOOLEAN DEFAULT FALSE,
+      commit_hash TEXT,
+      proposal_url TEXT
     )
   `;
 
@@ -105,16 +107,20 @@ export interface ProposalSeenRecord {
   title: string | null;
   seen_at: Date;
   notified: boolean;
+  commit_hash: string | null;
+  proposal_url: string | null;
 }
 
 export async function markProposalSeen(
   proposalId: string,
   topic: string,
-  title: string
+  title: string,
+  commitHash?: string | null,
+  proposalUrl?: string | null
 ): Promise<void> {
   await sql`
-    INSERT INTO proposals_seen (proposal_id, topic, title)
-    VALUES (${proposalId}, ${topic}, ${title})
+    INSERT INTO proposals_seen (proposal_id, topic, title, commit_hash, proposal_url)
+    VALUES (${proposalId}, ${topic}, ${title}, ${commitHash || null}, ${proposalUrl || null})
     ON CONFLICT (proposal_id) DO NOTHING
   `;
 }
@@ -134,7 +140,7 @@ export async function markProposalNotified(proposalId: string): Promise<void> {
 
 export async function getRecentProposals(limit: number = 50): Promise<ProposalSeenRecord[]> {
   const result = await sql<ProposalSeenRecord[]>`
-    SELECT proposal_id::TEXT as proposal_id, topic, title, seen_at, notified
+    SELECT proposal_id::TEXT as proposal_id, topic, title, seen_at, notified, commit_hash, proposal_url
     FROM proposals_seen
     ORDER BY proposal_id DESC
     LIMIT ${limit}

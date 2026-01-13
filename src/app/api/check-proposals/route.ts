@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   listProposals,
   filterNewProposals,
+  extractCommitHash,
   PROTOCOL_CANISTER_MANAGEMENT_TOPIC,
   MIN_PROPOSAL_ID,
 } from "@/lib/nns";
@@ -93,8 +94,18 @@ export async function POST(request: Request) {
     for (const proposal of newProposals) {
       const proposalIdStr = proposal.id.toString();
 
-      // Mark as seen
-      await markProposalSeen(proposalIdStr, "Protocol Canister Management", proposal.title);
+      // Extract commit hash from proposal text
+      const combinedText = `${proposal.title}\n${proposal.summary}\n${proposal.url}`;
+      const commitHash = extractCommitHash(combinedText);
+
+      // Mark as seen with commit hash and URL
+      await markProposalSeen(
+        proposalIdStr,
+        "Protocol Canister Management",
+        proposal.title,
+        commitHash,
+        proposal.url || null
+      );
 
       // Notify each subscriber
       for (const sub of subscriptions) {
