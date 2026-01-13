@@ -32,11 +32,9 @@ export function parseNetscapeCookies(text: string): ParsedCookie[] {
     const [domain, , path, secureStr, expiresStr, name, ...valueParts] = parts;
     const value = valueParts.join('\t'); // Rejoin in case value contains tabs
 
-    // Validate domain
+    // Only include forum.dfinity.org cookies, skip others silently
     if (!domain.includes('forum.dfinity.org')) {
-      throw new Error(
-        `Invalid domain: ${domain}. Cookies must be from forum.dfinity.org`
-      );
+      continue;
     }
 
     cookies.push({
@@ -126,7 +124,7 @@ export function cookiesToHeaderString(cookies: ParsedCookie[]): string {
  */
 export function validateCookies(cookies: ParsedCookie[]): void {
   if (cookies.length === 0) {
-    throw new Error('No valid cookies found');
+    throw new Error('No forum.dfinity.org cookies found in input. Please include cookies from forum.dfinity.org');
   }
 
   for (const cookie of cookies) {
@@ -135,14 +133,7 @@ export function validateCookies(cookies: ParsedCookie[]): void {
       throw new Error('Cookie must have name and value');
     }
 
-    // Validate domain
-    if (!cookie.domain || !cookie.domain.includes('forum.dfinity.org')) {
-      throw new Error(
-        `Invalid cookie domain: ${cookie.domain}. Must be forum.dfinity.org`
-      );
-    }
-
-    // Check for suspicious patterns
+    // Check for suspicious patterns (security check)
     if (cookie.name.length > 256 || cookie.value.length > 8192) {
       throw new Error('Cookie name or value exceeds maximum length');
     }
