@@ -98,13 +98,17 @@ export async function POST(request: Request) {
       const combinedText = `${proposal.title}\n${proposal.summary}\n${proposal.url}`;
       const commitHash = extractCommitHash(combinedText);
 
-      // Mark as seen with commit hash and URL
+      // Convert timestamp to Date
+      const proposalTimestamp = new Date(Number(proposal.proposalTimestampSeconds) * 1000);
+
+      // Mark as seen with commit hash, URL, and on-chain timestamp
       await markProposalSeen(
         proposalIdStr,
         "Protocol Canister Management",
         proposal.title,
         commitHash,
-        proposal.url || null
+        proposal.url || null,
+        proposalTimestamp
       );
 
       // Notify each subscriber

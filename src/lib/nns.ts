@@ -18,6 +18,7 @@ export interface ProposalInfo {
   title: string;
   summary: string;
   url: string;
+  proposalTimestampSeconds: bigint;
 }
 
 export interface ProposalDetail {
@@ -55,6 +56,7 @@ const listProposalsIdlFactory = () => {
     ),
     topic: IDL.Int32,
     status: IDL.Int32,
+    proposal_timestamp_seconds: IDL.Nat64,
   });
 
   const ListProposalInfoResponse = IDL.Record({
@@ -168,6 +170,7 @@ export async function listProposals(
       topic: number;
       status: number;
       proposal?: [{ title?: [string]; summary: string; url: string }];
+      proposal_timestamp_seconds: bigint;
     };
     return {
       id: proposal.id?.[0]?.id || 0n,
@@ -177,6 +180,7 @@ export async function listProposals(
       title: proposal.proposal?.[0]?.title?.[0] || "Untitled",
       summary: proposal.proposal?.[0]?.summary || "",
       url: proposal.proposal?.[0]?.url || "",
+      proposalTimestampSeconds: proposal.proposal_timestamp_seconds,
     };
   });
 }
