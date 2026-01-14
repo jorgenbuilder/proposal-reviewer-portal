@@ -188,6 +188,29 @@ export async function getForumThreadsForProposal(
   return data || []
 }
 
+export async function getForumThreadsForProposals(
+  proposalIds: string[]
+): Promise<Map<string, ProposalForumThread[]>> {
+  if (proposalIds.length === 0) return new Map()
+
+  const { data, error } = await supabase
+    .from('proposal_forum_threads')
+    .select('*')
+    .in('proposal_id', proposalIds)
+    .order('added_at', { ascending: false })
+
+  if (error) throw error
+
+  // Group by proposal_id
+  const threadsMap = new Map<string, ProposalForumThread[]>()
+  for (const thread of data || []) {
+    const existing = threadsMap.get(thread.proposal_id) || []
+    threadsMap.set(thread.proposal_id, [...existing, thread])
+  }
+
+  return threadsMap
+}
+
 // Reviewer tracking operations
 
 export async function markProposalViewerSeen(proposalId: string): Promise<void> {

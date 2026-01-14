@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getRecentProposals, getLatestCommentaryTitles } from "@/lib/db";
+import { getRecentProposals, getLatestCommentaryTitles, getForumThreadsForProposals } from "@/lib/db";
 import { getVerificationStatusForProposals, VerificationStatus } from "@/lib/github";
 
 export interface ProposalResponse {
@@ -16,6 +16,7 @@ export interface ProposalResponse {
   reviewForumUrl: string | null;
   reviewedAt: string | null;
   commentaryTitle: string | null;
+  forumThreadUrl: string | null;
 }
 
 export async function GET() {
@@ -23,16 +24,20 @@ export async function GET() {
     const proposals = await getRecentProposals(50);
     const proposalIds = proposals.map((p) => p.proposal_id);
 
-    // Batch fetch verification statuses and commentary titles
-    const [verificationMap, commentaryTitleMap] = await Promise.all([
+    // Batch fetch verification statuses, commentary titles, and forum threads
+    const [verificationMap, commentaryTitleMap, forumThreadsMap] = await Promise.all([
       getVerificationStatusForProposals(proposalIds),
       getLatestCommentaryTitles(proposalIds),
+      getForumThreadsForProposals(proposalIds),
     ]);
 
     return NextResponse.json({
       proposals: proposals.map((p): ProposalResponse => {
         const verification = verificationMap.get(p.proposal_id);
         const commentaryTitle = commentaryTitleMap.get(p.proposal_id);
+        const forumThreads = forumThreadsMap.get(p.proposal_id);
+        // Get the first (most recent) thread URL if any exist
+        const forumThreadUrl = forumThreads && forumThreads.length > 0 ? forumThreads[0].forum_url : null;
         return {
           id: p.proposal_id,
           title: p.title || "Untitled",
@@ -47,6 +52,7 @@ export async function GET() {
           reviewForumUrl: p.review_forum_url,
           reviewedAt: p.reviewed_at,
           commentaryTitle: commentaryTitle || null,
+          forumThreadUrl,
         };
       }),
     });

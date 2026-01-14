@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RotateCw, Github, Check, Clock, Settings } from "lucide-react";
+import { RotateCw, Github, Check, Clock, Settings, MessageSquare } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -27,6 +27,7 @@ interface Proposal {
   reviewForumUrl: string | null;
   reviewedAt: string | null;
   commentaryTitle: string | null;
+  forumThreadUrl: string | null;
 }
 
 async function fetchProposals(): Promise<Proposal[]> {
@@ -327,6 +328,18 @@ function ProposalCard({ proposal }: { proposal: Proposal }) {
               IC Dashboard
             </a>
           </Button>
+          {/* Forum Thread Link */}
+          {proposal.forumThreadUrl && (
+            <a
+              href={proposal.forumThreadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline underline-offset-2"
+            >
+              <MessageSquare className="h-3 w-3" />
+              <span>Forum</span>
+            </a>
+          )}
           {/* GitHub Diff Link */}
           {proposal.commitHash && githubDiffUrl && (
             <a
