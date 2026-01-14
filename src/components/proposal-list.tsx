@@ -306,6 +306,15 @@ function ProposalCard({ proposal }: { proposal: Proposal }) {
                 <span>{proposal.topic}</span>
                 <VerificationStatusIndicator status={proposal.verificationStatus} />
               </div>
+              <div className="text-xs text-muted-foreground">
+                {new Date(proposal.seenAt).toLocaleString(undefined, {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </div>
               {proposal.commentaryTitle && (
                 <div className="text-xs italic text-muted-foreground/80">
                   AI: {proposal.commentaryTitle}
