@@ -64,7 +64,8 @@ export async function markProposalSeen(
   topic: string,
   title: string,
   commitHash?: string | null,
-  proposalUrl?: string | null
+  proposalUrl?: string | null,
+  proposalTimestamp?: Date | null
 ): Promise<void> {
   const { error } = await supabase
     .from('proposals_seen')
@@ -74,7 +75,8 @@ export async function markProposalSeen(
         topic,
         title,
         commit_hash: commitHash || null,
-        proposal_url: proposalUrl || null
+        proposal_url: proposalUrl || null,
+        proposal_timestamp: proposalTimestamp?.toISOString() || null
       },
       { onConflict: 'proposal_id', ignoreDuplicates: true }
     )

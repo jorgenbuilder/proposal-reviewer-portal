@@ -17,6 +17,7 @@ export interface ProposalResponse {
   reviewedAt: string | null;
   commentaryTitle: string | null;
   forumThreadUrl: string | null;
+  proposalTimestamp: string | null;
 }
 
 export async function GET() {
@@ -53,6 +54,7 @@ export async function GET() {
           reviewedAt: p.reviewed_at,
           commentaryTitle: commentaryTitle || null,
           forumThreadUrl,
+          proposalTimestamp: p.proposal_timestamp,
         };
       }),
     });

@@ -28,6 +28,7 @@ interface Proposal {
   reviewedAt: string | null;
   commentaryTitle: string | null;
   forumThreadUrl: string | null;
+  proposalTimestamp: string | null;
 }
 
 async function fetchProposals(): Promise<Proposal[]> {
@@ -307,7 +308,7 @@ function ProposalCard({ proposal }: { proposal: Proposal }) {
                 <VerificationStatusIndicator status={proposal.verificationStatus} />
               </div>
               <div className="text-xs text-muted-foreground">
-                {new Date(proposal.seenAt).toLocaleString(undefined, {
+                {new Date(proposal.proposalTimestamp || proposal.seenAt).toLocaleString(undefined, {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric',

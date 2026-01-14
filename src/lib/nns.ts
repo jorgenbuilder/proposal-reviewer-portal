@@ -30,6 +30,7 @@ export interface ProposalDetail {
   commitHash: string | null;
   expectedWasmHash: string | null;
   canisterId: string | null;
+  proposalTimestampSeconds: bigint;
 }
 
 // IDL factory for list_proposals
@@ -200,6 +201,7 @@ export async function getProposal(
     id?: [{ id: bigint }];
     topic: number;
     status: number;
+    executed_timestamp_seconds: bigint;
     proposal?: [
       {
         title?: [string];
@@ -253,6 +255,7 @@ export async function getProposal(
     commitHash,
     expectedWasmHash,
     canisterId,
+    proposalTimestampSeconds: proposalInfo.executed_timestamp_seconds,
   };
 }
 
