@@ -11,18 +11,34 @@ export interface ActionRun {
 }
 
 export async function getVerificationRunForProposal(
-  proposalId: string
+  proposalId: string,
+  useAuth = false
 ): Promise<ActionRun | null> {
   try {
+    const headers: Record<string, string> = {
+      Accept: "application/vnd.github.v3+json",
+    };
+
+    // Add auth token if requested (bypasses cache, gets fresh data)
+    if (useAuth && process.env.GITHUB_TOKEN) {
+      headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+    }
+
+    const fetchOptions: RequestInit = {
+      headers,
+    };
+
+    // Only cache if not using auth
+    if (!useAuth) {
+      fetchOptions.next = { revalidate: 60 };
+    } else {
+      // Disable cache when using auth
+      fetchOptions.cache = "no-store";
+    }
+
     const response = await fetch(
       `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs?per_page=100`,
-      {
-        headers: {
-          Accept: "application/vnd.github.v3+json",
-          // Add token if rate limited: Authorization: `Bearer ${process.env.GITHUB_TOKEN}`
-        },
-        next: { revalidate: 60 }, // Cache for 1 minute
-      }
+      fetchOptions
     );
 
     if (!response.ok) {
@@ -52,6 +68,58 @@ export async function getVerificationRunForProposal(
   } catch (error) {
     console.error("Failed to fetch GitHub actions:", error);
     return null;
+  }
+}
+
+// Check if ANY workflow (verify or commentary) exists for this proposal
+// Returns true if a run exists within the last `withinMinutes` minutes
+export async function hasRecentWorkflowRun(
+  proposalId: string,
+  withinMinutes = 10
+): Promise<boolean> {
+  try {
+    const headers: Record<string, string> = {
+      Accept: "application/vnd.github.v3+json",
+    };
+
+    // Always use auth for fresh data in cron checks
+    if (process.env.GITHUB_TOKEN) {
+      headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+    }
+
+    const response = await fetch(
+      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs?per_page=100`,
+      {
+        headers,
+        cache: "no-store", // Always get fresh data
+      }
+    );
+
+    if (!response.ok) {
+      console.error("GitHub API error:", response.status);
+      return false;
+    }
+
+    const data = await response.json();
+    const cutoffTime = new Date(Date.now() - withinMinutes * 60 * 1000);
+
+    // Find ANY run (verify OR commentary) for this proposal created recently
+    const recentRun = data.workflow_runs?.find((r: {
+      display_title?: string;
+      created_at?: string;
+    }) => {
+      const matchesProposal =
+        r.display_title?.includes(`Proposal #${proposalId}`);
+      const createdAt = r.created_at ? new Date(r.created_at) : null;
+      const isRecent = createdAt && createdAt > cutoffTime;
+
+      return matchesProposal && isRecent;
+    });
+
+    return !!recentRun;
+  } catch (error) {
+    console.error("Failed to check for recent workflow runs:", error);
+    return false;
   }
 }
 

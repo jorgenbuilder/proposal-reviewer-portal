@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Receiver } from "@upstash/qstash";
 import { getRecentProposals } from "@/lib/db";
-import { getVerificationRunForProposal } from "@/lib/github";
+import { hasRecentWorkflowRun } from "@/lib/github";
 import { getProposal, MIN_PROPOSAL_ID } from "@/lib/nns";
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -151,12 +151,14 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Check if verification already exists
-      const existingRun = await getVerificationRunForProposal(
-        proposal.proposal_id
+      // Check if any workflow (verify or commentary) was triggered recently (within last 10 minutes)
+      // This prevents duplicate runs when cron runs every 3 minutes
+      const hasRecentRun = await hasRecentWorkflowRun(
+        proposal.proposal_id,
+        10 // Check last 10 minutes
       );
 
-      if (existingRun) {
+      if (hasRecentRun) {
         skippedProposals.push(proposal.proposal_id);
         continue;
       }
