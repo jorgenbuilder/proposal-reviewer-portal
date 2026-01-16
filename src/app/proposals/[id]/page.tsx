@@ -13,7 +13,6 @@ import { ForumLinksWidget } from "@/components/forum-links-widget";
 import { ProposalSeenMarker } from "@/components/proposal-seen-marker";
 import { ReviewSubmitWidget } from "@/components/review-submit-widget";
 import { CommentaryWidget } from "@/components/commentary-widget";
-import { EnhancedMarkdown } from "@/components/enhanced-markdown";
 import { getProposal } from "@/lib/nns";
 import { getVerificationRunForProposal, getDashboardUrl } from "@/lib/github";
 import { getForumCategoryUrl } from "@/lib/forum";
@@ -155,17 +154,6 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
           </Card>
         )}
 
-        {/* Summary */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <EnhancedMarkdown>{proposal.summary}</EnhancedMarkdown>
-          </CardContent>
-        </Card>
       </main>
     </div>
   );
