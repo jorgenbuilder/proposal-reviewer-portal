@@ -93,20 +93,23 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
           </CardContent>
         </Card>
 
-        {/* Forum Discussion - Client Component */}
-        <ForumLinksWidget
-          proposalId={id}
-          forumCategoryUrl={forumCategoryUrl}
-        />
-
-        {/* Review Submission Widget */}
-        <ReviewSubmitWidget proposalId={id} />
-
-        {/* Build Verification Widget - Always Present */}
+        {/* Build Verification Widget - First */}
         <BuildVerificationWidget
           isUpgradeProposal={isUpgradeProposal}
           verificationRun={verificationRun}
           proposalId={id}
+        />
+
+        {/* AI Commentary - Second */}
+        <CommentaryWidget commentary={commentary} proposalId={id} />
+
+        {/* Review Submission Widget */}
+        <ReviewSubmitWidget proposalId={id} />
+
+        {/* Forum Discussion - Client Component */}
+        <ForumLinksWidget
+          proposalId={id}
+          forumCategoryUrl={forumCategoryUrl}
         />
 
         {/* Technical Details - Only for upgrade proposals */}
@@ -163,9 +166,6 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
             <EnhancedMarkdown>{proposal.summary}</EnhancedMarkdown>
           </CardContent>
         </Card>
-
-        {/* AI Commentary */}
-        <CommentaryWidget commentary={commentary} proposalId={id} />
       </main>
     </div>
   );
