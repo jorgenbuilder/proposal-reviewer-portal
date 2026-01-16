@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, X } from "lucide-react";
+import { Check, Trash2, ExternalLink } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -137,38 +137,37 @@ export function ReviewSubmitWidget({ proposalId }: ReviewSubmitWidgetProps) {
           <p className="text-sm text-muted-foreground">Loading...</p>
         ) : isReviewed ? (
           <div className="space-y-4">
-            <div className="p-3 rounded-md bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900">
-              <p className="text-sm font-medium text-green-800 dark:text-green-200">
-                Review submitted
-                {reviewedDate && (
-                  <span className="font-normal text-green-600 dark:text-green-400">
-                    {" "}on {reviewedDate.toLocaleDateString(undefined, {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </span>
-                )}
-              </p>
-              <a
-                href={reviewStatus.reviewForumUrl!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-green-700 dark:text-green-300 hover:underline break-all"
+            <p className="text-sm text-muted-foreground">
+              Reviewed{reviewedDate && (
+                <> on {reviewedDate.toLocaleDateString(undefined, {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}</>
+              )}
+            </p>
+            <div className="flex gap-2">
+              <Button size="sm" asChild>
+                <a
+                  href={reviewStatus.reviewForumUrl!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  View Review
+                </a>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => clearMutation.mutate()}
+                disabled={clearMutation.isPending}
+                className="text-destructive hover:text-destructive"
               >
-                {reviewStatus.reviewForumUrl}
-              </a>
+                <Trash2 className="h-4 w-4 mr-1" />
+                {clearMutation.isPending ? "Deleting..." : "Delete"}
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => clearMutation.mutate()}
-              disabled={clearMutation.isPending}
-              className="text-destructive hover:text-destructive"
-            >
-              <X className="h-4 w-4 mr-1" />
-              {clearMutation.isPending ? "Clearing..." : "Clear Review"}
-            </Button>
           </div>
         ) : (
           <div className="space-y-3">
