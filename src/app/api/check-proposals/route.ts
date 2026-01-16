@@ -3,7 +3,8 @@ import {
   listProposals,
   filterNewProposals,
   extractCommitHash,
-  PROTOCOL_CANISTER_MANAGEMENT_TOPIC,
+  PROPOSAL_TOPICS,
+  TOPIC_NAMES,
   MIN_PROPOSAL_ID,
 } from "@/lib/nns";
 import {
@@ -62,10 +63,23 @@ export async function POST(request: Request) {
     const seenIds = await getSeenProposalIds();
     console.log(`[check-proposals] ${seenIds.size} proposals already seen`);
 
-    // 3. Filter to new proposals in tracked topic
+    // 3. Get all unique topics from all subscriptions
+    const subscriptions = await getSubscriptions();
+    const allTopics = new Set<number>();
+    for (const sub of subscriptions) {
+      if (sub.topics && Array.isArray(sub.topics)) {
+        sub.topics.forEach(topic => allTopics.add(topic));
+      }
+    }
+
+    // If no topics configured, default to all topics
+    const trackedTopics = allTopics.size > 0 ? Array.from(allTopics) : Object.values(PROPOSAL_TOPICS);
+    console.log(`[check-proposals] Tracking topics: ${trackedTopics.join(', ')}`);
+
+    // 4. Filter to new proposals in tracked topics
     const newProposals = filterNewProposals(
       proposals,
-      [PROTOCOL_CANISTER_MANAGEMENT_TOPIC],
+      trackedTopics,
       seenIds,
       MIN_PROPOSAL_ID
     );
@@ -80,8 +94,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // 4. Get all subscriptions
-    const subscriptions = await getSubscriptions();
     console.log(`[check-proposals] ${subscriptions.length} subscriptions to notify`);
 
     // 5. Process each new proposal
@@ -101,18 +113,29 @@ export async function POST(request: Request) {
       // Convert timestamp to Date
       const proposalTimestamp = new Date(Number(proposal.proposalTimestampSeconds) * 1000);
 
+      // Get topic name
+      const topicName = TOPIC_NAMES[proposal.topic] || `Topic ${proposal.topic}`;
+
       // Mark as seen with commit hash, URL, and on-chain timestamp
       await markProposalSeen(
         proposalIdStr,
-        "Protocol Canister Management",
+        topicName,
         proposal.title,
         commitHash,
         proposal.url || null,
         proposalTimestamp
       );
 
-      // Notify each subscriber
+      // Notify subscribers who are interested in this topic
       for (const sub of subscriptions) {
+        // Check if subscriber wants notifications for this topic
+        const wantsNotification = sub.topics && Array.isArray(sub.topics)
+          ? sub.topics.includes(proposal.topic)
+          : true; // If no topics configured, notify for all
+
+        if (!wantsNotification) {
+          continue; // Skip this subscriber for this proposal
+        }
         // Try push notification first
         try {
           const success = await sendPushNotification(
@@ -161,7 +184,7 @@ export async function POST(request: Request) {
             const emailSent = await sendProposalNotificationEmail(sub.email, {
               proposalId: proposalIdStr,
               title: proposal.title,
-              topic: "Protocol Canister Management",
+              topic: topicName,
               dashboardUrl: `https://dashboard.internetcomputer.org/proposal/${proposalIdStr}`,
               appUrl: `${baseUrl}/proposals/${proposalIdStr}`,
             });

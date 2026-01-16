@@ -107,7 +107,7 @@ export function NotificationPrompt({ onComplete }: NotificationPromptProps) {
 
           <div className="pt-4 border-t">
             <p className="text-xs text-center text-muted-foreground">
-              Currently monitoring: Protocol Canister Management proposals
+              After enabling, you can customize which proposal topics you want to monitor
             </p>
           </div>
         </CardContent>

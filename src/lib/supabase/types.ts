@@ -19,6 +19,7 @@ export type Database = {
           p256dh: string
           auth: string
           email: string | null
+          topics: number[] | null
           created_at: string
           last_success: string | null
         }
@@ -28,6 +29,7 @@ export type Database = {
           p256dh: string
           auth: string
           email?: string | null
+          topics?: number[] | null
           created_at?: string
           last_success?: string | null
         }
@@ -37,6 +39,7 @@ export type Database = {
           p256dh?: string
           auth?: string
           email?: string | null
+          topics?: number[] | null
           created_at?: string
           last_success?: string | null
         }

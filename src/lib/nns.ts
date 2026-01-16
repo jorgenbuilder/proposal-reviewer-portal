@@ -4,11 +4,55 @@ import { IDL } from "@dfinity/candid";
 
 const GOVERNANCE_CANISTER_ID = "rrkah-fqaaa-aaaaa-aaaaq-cai";
 
-// Topic 17 = Protocol Canister Management (InstallCode proposals)
-export const PROTOCOL_CANISTER_MANAGEMENT_TOPIC = 17;
+// NNS Proposal Topics
+// Reference: https://internetcomputer.org/docs/current/developer-docs/daos/nns/overview
+export const PROPOSAL_TOPICS = {
+  NEURON_MANAGEMENT: 0,
+  EXCHANGE_RATE: 2,
+  NETWORK_ECONOMICS: 3,
+  GOVERNANCE: 4,
+  NODE_ADMIN: 5,
+  PARTICIPANT_MANAGEMENT: 6,
+  SUBNET_MANAGEMENT: 7,
+  NETWORK_CANISTER_MANAGEMENT: 8,
+  KYC: 9,
+  NODE_PROVIDER_REWARDS: 10,
+  IC_OS_VERSION_DEPLOYMENT: 12,
+  IC_OS_VERSION_ELECTION: 13,
+  SNS_AND_NEURONS_FUND: 14,
+  PROTOCOL_CANISTER_MANAGEMENT: 17,
+  SUBNET_REPLICA_VERSION_MANAGEMENT: 19,
+  REPLICA_VERSION_MANAGEMENT: 20,
+  SNS_DECENTRALIZATION_SALE: 21,
+  API_BOUNDARY_NODE: 24,
+} as const;
 
-// Only verify proposals after this ID
-export const MIN_PROPOSAL_ID = 139768n;
+export const TOPIC_NAMES: Record<number, string> = {
+  [PROPOSAL_TOPICS.NEURON_MANAGEMENT]: "Neuron Management",
+  [PROPOSAL_TOPICS.EXCHANGE_RATE]: "Exchange Rate",
+  [PROPOSAL_TOPICS.NETWORK_ECONOMICS]: "Network Economics",
+  [PROPOSAL_TOPICS.GOVERNANCE]: "Governance",
+  [PROPOSAL_TOPICS.NODE_ADMIN]: "Node Admin",
+  [PROPOSAL_TOPICS.PARTICIPANT_MANAGEMENT]: "Participant Management",
+  [PROPOSAL_TOPICS.SUBNET_MANAGEMENT]: "Subnet Management",
+  [PROPOSAL_TOPICS.NETWORK_CANISTER_MANAGEMENT]: "Network Canister Management",
+  [PROPOSAL_TOPICS.KYC]: "KYC",
+  [PROPOSAL_TOPICS.NODE_PROVIDER_REWARDS]: "Node Provider Rewards",
+  [PROPOSAL_TOPICS.IC_OS_VERSION_DEPLOYMENT]: "IC OS Version Deployment",
+  [PROPOSAL_TOPICS.IC_OS_VERSION_ELECTION]: "IC OS Version Election",
+  [PROPOSAL_TOPICS.SNS_AND_NEURONS_FUND]: "SNS and Neurons Fund",
+  [PROPOSAL_TOPICS.PROTOCOL_CANISTER_MANAGEMENT]: "Protocol Canister Management",
+  [PROPOSAL_TOPICS.SUBNET_REPLICA_VERSION_MANAGEMENT]: "Subnet Replica Version Management",
+  [PROPOSAL_TOPICS.REPLICA_VERSION_MANAGEMENT]: "Replica Version Management",
+  [PROPOSAL_TOPICS.SNS_DECENTRALIZATION_SALE]: "SNS Decentralization Sale",
+  [PROPOSAL_TOPICS.API_BOUNDARY_NODE]: "API Boundary Node",
+};
+
+// Legacy export for backwards compatibility
+export const PROTOCOL_CANISTER_MANAGEMENT_TOPIC = PROPOSAL_TOPICS.PROTOCOL_CANISTER_MANAGEMENT;
+
+// Only verify proposals after this ID (first proposal on Jan 12 2026 UTC)
+export const MIN_PROPOSAL_ID = 140000n;
 
 export interface ProposalInfo {
   id: bigint;

@@ -18,12 +18,19 @@ export async function saveSubscription(
   endpoint: string,
   p256dh: string,
   auth: string,
-  email?: string
+  email?: string,
+  topics?: number[]
 ): Promise<void> {
   const { error } = await supabase
     .from('push_subscriptions')
     .upsert(
-      { endpoint, p256dh, auth, email: email || null },
+      {
+        endpoint,
+        p256dh,
+        auth,
+        email: email || null,
+        topics: topics || [17] // Default to Protocol Canister Management
+      },
       { onConflict: 'endpoint' }
     )
 
@@ -37,6 +44,18 @@ export async function getSubscriptions(): Promise<PushSubscriptionRecord[]> {
 
   if (error) throw error
   return data || []
+}
+
+export async function updateSubscriptionTopics(
+  endpoint: string,
+  topics: number[]
+): Promise<void> {
+  const { error } = await supabase
+    .from('push_subscriptions')
+    .update({ topics })
+    .eq('endpoint', endpoint)
+
+  if (error) throw error
 }
 
 export async function deleteSubscription(endpoint: string): Promise<void> {

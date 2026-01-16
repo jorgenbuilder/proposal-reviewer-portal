@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { isStandalone, isPushSupported, registerServiceWorker } from "@/lib/push";
 import { InstallInstructions } from "./install-instructions";
 import { NotificationPrompt } from "./notification-prompt";
-import { ProposalList } from "./proposal-list";
+import { ProposalDataTable } from "./proposal-data-table";
 
 type AppState = "loading" | "install" | "notifications" | "ready";
 
@@ -65,5 +65,5 @@ export function AppContainer() {
     return <NotificationPrompt onComplete={() => setState("ready")} />;
   }
 
-  return <ProposalList />;
+  return <ProposalDataTable />;
 }
