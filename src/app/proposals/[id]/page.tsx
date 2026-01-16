@@ -1,15 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { BuildVerificationWidget } from "@/components/build-verification-widget";
-import { ForumLinksWidget } from "@/components/forum-links-widget";
+import { ProposalHeader } from "@/components/proposal-header";
 import { ProposalSeenMarker } from "@/components/proposal-seen-marker";
 import { ReviewSubmitWidget } from "@/components/review-submit-widget";
 import { CommentaryWidget } from "@/components/commentary-widget";
@@ -61,99 +52,25 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         {/* Mark proposal as seen when page loads */}
         <ProposalSeenMarker proposalId={id} />
 
-        <Card>
-          <CardHeader>
-            <CardDescription>Proposal #{id}</CardDescription>
-            <CardTitle className="text-2xl">{proposal.title}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <Button asChild>
-                <a
-                  href={dashboardUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  View on IC Dashboard
-                </a>
-              </Button>
-              {proposal.url && (
-                <Button variant="outline" asChild>
-                  <a
-                    href={proposal.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Proposal URL
-                  </a>
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Build Verification Widget - First */}
-        <BuildVerificationWidget
-          isUpgradeProposal={isUpgradeProposal}
-          verificationRun={verificationRun}
+        {/* Unified Header with title, links, tech details, forum, and verification status */}
+        <ProposalHeader
           proposalId={id}
+          title={proposal.title}
+          dashboardUrl={dashboardUrl}
+          proposalUrl={proposal.url}
+          canisterId={proposal.canisterId}
+          commitHash={proposal.commitHash}
+          expectedWasmHash={proposal.expectedWasmHash}
+          forumCategoryUrl={forumCategoryUrl}
+          verificationRun={verificationRun}
+          isUpgradeProposal={isUpgradeProposal}
         />
 
-        {/* AI Commentary - Second */}
+        {/* AI Commentary */}
         <CommentaryWidget commentary={commentary} proposalId={id} />
 
         {/* Review Submission Widget */}
         <ReviewSubmitWidget proposalId={id} />
-
-        {/* Forum Discussion - Client Component */}
-        <ForumLinksWidget
-          proposalId={id}
-          forumCategoryUrl={forumCategoryUrl}
-        />
-
-        {/* Technical Details - Only for upgrade proposals */}
-        {isUpgradeProposal && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Technical Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                {proposal.canisterId && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">
-                      Target Canister
-                    </p>
-                    <p className="font-mono text-sm break-all">
-                      {proposal.canisterId}
-                    </p>
-                  </div>
-                )}
-                {proposal.commitHash && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">
-                      Source Commit
-                    </p>
-                    <p className="font-mono text-sm break-all">
-                      {proposal.commitHash}
-                    </p>
-                  </div>
-                )}
-                {proposal.expectedWasmHash && (
-                  <div className="md:col-span-2">
-                    <p className="text-sm font-medium text-muted-foreground">
-                      Expected WASM Hash
-                    </p>
-                    <p className="font-mono text-sm break-all">
-                      {proposal.expectedWasmHash}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
       </main>
     </div>
   );
