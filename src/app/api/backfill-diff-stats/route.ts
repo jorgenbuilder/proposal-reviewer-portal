@@ -6,6 +6,7 @@ import {
 import {
   getCommitDiffStats,
   getCommitDiffStatsByHash,
+  parseGitHubUrl,
 } from "@/lib/github";
 
 // Verify cron secret or QStash signature
@@ -80,15 +81,24 @@ export async function POST(request: Request) {
 
       try {
         let diffStats = null;
+        let pathFilter: string | null = null;
 
-        // Try to get stats from proposal URL first
+        // Try to get stats from proposal URL first (includes path filtering)
         if (proposal.proposalUrl?.includes("github.com")) {
           diffStats = await getCommitDiffStats(proposal.proposalUrl);
+          // Extract path filter for logging
+          const parsed = parseGitHubUrl(proposal.proposalUrl);
+          pathFilter = parsed?.path || null;
         }
 
         // Fall back to searching by commit hash
+        // Try to extract path from URL if available
         if (!diffStats && proposal.commitHash) {
-          diffStats = await getCommitDiffStatsByHash(proposal.commitHash);
+          if (proposal.proposalUrl) {
+            const parsed = parseGitHubUrl(proposal.proposalUrl);
+            pathFilter = parsed?.path || null;
+          }
+          diffStats = await getCommitDiffStatsByHash(proposal.commitHash, pathFilter || undefined);
         }
 
         if (diffStats) {
@@ -104,8 +114,9 @@ export async function POST(request: Request) {
             linesAdded: diffStats.additions,
             linesRemoved: diffStats.deletions,
           });
+          const filterInfo = pathFilter ? ` (filtered to ${pathFilter})` : "";
           console.log(
-            `[backfill-diff-stats] #${proposal.proposalId}: +${diffStats.additions} -${diffStats.deletions}`
+            `[backfill-diff-stats] #${proposal.proposalId}: +${diffStats.additions} -${diffStats.deletions}${filterInfo}`
           );
         } else {
           // Mark as 0/0 to indicate we tried but found no data

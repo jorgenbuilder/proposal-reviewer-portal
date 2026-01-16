@@ -19,7 +19,7 @@ import {
 } from "@/lib/db";
 import { sendPushNotification } from "@/lib/web-push-server";
 import { sendProposalNotificationEmail } from "@/lib/email";
-import { getCommitDiffStats, getCommitDiffStatsByHash } from "@/lib/github";
+import { getCommitDiffStats, getCommitDiffStatsByHash, parseGitHubUrl } from "@/lib/github";
 
 // Verify cron secret or QStash signature
 function verifyAuth(request: Request): boolean {
@@ -133,15 +133,22 @@ export async function POST(request: Request) {
         (async () => {
           try {
             let diffStats = null;
+            let pathFilter: string | null = null;
 
-            // Try to get stats from proposal URL first
+            // Try to get stats from proposal URL first (includes path filtering)
             if (proposal.url?.includes("github.com")) {
               diffStats = await getCommitDiffStats(proposal.url);
+              const parsed = parseGitHubUrl(proposal.url);
+              pathFilter = parsed?.path || null;
             }
 
-            // Fall back to searching by commit hash
+            // Fall back to searching by commit hash with path filter from URL
             if (!diffStats && commitHash) {
-              diffStats = await getCommitDiffStatsByHash(commitHash);
+              if (proposal.url) {
+                const parsed = parseGitHubUrl(proposal.url);
+                pathFilter = parsed?.path || null;
+              }
+              diffStats = await getCommitDiffStatsByHash(commitHash, pathFilter || undefined);
             }
 
             if (diffStats) {
@@ -150,7 +157,8 @@ export async function POST(request: Request) {
                 diffStats.additions,
                 diffStats.deletions
               );
-              console.log(`[check-proposals] Stored diff stats for #${proposalIdStr}: +${diffStats.additions} -${diffStats.deletions}`);
+              const filterInfo = pathFilter ? ` (filtered to ${pathFilter})` : "";
+              console.log(`[check-proposals] Stored diff stats for #${proposalIdStr}: +${diffStats.additions} -${diffStats.deletions}${filterInfo}`);
             }
           } catch (error) {
             console.error(`[check-proposals] Failed to fetch diff stats for #${proposalIdStr}:`, error);

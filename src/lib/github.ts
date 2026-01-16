@@ -228,42 +228,76 @@ export function getDashboardUrl(proposalId: string): string {
 export interface CommitDiffStats {
   additions: number;
   deletions: number;
+  filesChanged?: number;
+  pathFilter?: string;
 }
 
-// Fetch diff stats for a commit from any GitHub repo URL
-export async function getCommitDiffStats(
-  commitUrl: string
-): Promise<CommitDiffStats | null> {
+interface GitHubFileChange {
+  filename: string;
+  additions: number;
+  deletions: number;
+  changes: number;
+  status: string;
+}
+
+// Parse a GitHub URL to extract owner, repo, commit SHA, and optional path
+export function parseGitHubUrl(url: string): {
+  owner: string;
+  repo: string;
+  sha: string;
+  path: string | null;
+} | null {
+  // Handle formats like:
+  // - https://github.com/owner/repo/commit/sha
+  // - https://github.com/owner/repo/tree/sha
+  // - https://github.com/owner/repo/tree/sha/path/to/dir
+  // - https://github.com/owner/repo/compare/base...sha
+
+  // Match tree URLs with optional path: /tree/sha or /tree/sha/path/to/dir
+  const treeMatch = url.match(
+    /github\.com\/([^\/]+)\/([^\/]+)\/tree\/([a-f0-9]+)(?:\/(.+))?/i
+  );
+  if (treeMatch) {
+    const [, owner, repo, sha, path] = treeMatch;
+    return { owner, repo, sha, path: path || null };
+  }
+
+  // Match commit URLs: /commit/sha
+  const commitMatch = url.match(
+    /github\.com\/([^\/]+)\/([^\/]+)\/commit\/([a-f0-9]+)/i
+  );
+  if (commitMatch) {
+    const [, owner, repo, sha] = commitMatch;
+    return { owner, repo, sha, path: null };
+  }
+
+  // Match compare URLs: /compare/base...sha
+  const compareMatch = url.match(
+    /github\.com\/([^\/]+)\/([^\/]+)\/compare\/[^\.]+\.\.\.?([a-f0-9]+)/i
+  );
+  if (compareMatch) {
+    const [, owner, repo, sha] = compareMatch;
+    return { owner, repo, sha, path: null };
+  }
+
+  return null;
+}
+
+// Fetch commit details with per-file stats from GitHub API
+async function fetchCommitWithFiles(
+  owner: string,
+  repo: string,
+  sha: string
+): Promise<{ stats: { additions: number; deletions: number }; files: GitHubFileChange[] } | null> {
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github.v3+json",
+  };
+
+  if (process.env.GITHUB_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  }
+
   try {
-    // Parse the commit URL to extract owner, repo, and commit SHA
-    // Handles formats like:
-    // - https://github.com/owner/repo/commit/sha
-    // - https://github.com/owner/repo/tree/sha
-    // - https://github.com/owner/repo/compare/base...sha
-    const urlMatch = commitUrl.match(
-      /github\.com\/([^\/]+)\/([^\/]+)\/(?:commit|tree|compare\/[^\.]+\.\.\.?)([a-f0-9]+)/i
-    );
-
-    if (!urlMatch) {
-      // Try to match just a SHA if the URL contains one
-      const shaMatch = commitUrl.match(/([a-f0-9]{40})/i);
-      if (!shaMatch) {
-        return null;
-      }
-      // Can't determine repo from URL alone
-      return null;
-    }
-
-    const [, owner, repo, sha] = urlMatch;
-
-    const headers: Record<string, string> = {
-      Accept: "application/vnd.github.v3+json",
-    };
-
-    if (process.env.GITHUB_TOKEN) {
-      headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-    }
-
     const response = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/commits/${sha}`,
       {
@@ -278,11 +312,71 @@ export async function getCommitDiffStats(
     }
 
     const data = await response.json();
-
     return {
-      additions: data.stats?.additions || 0,
-      deletions: data.stats?.deletions || 0,
+      stats: data.stats || { additions: 0, deletions: 0 },
+      files: data.files || [],
     };
+  } catch (error) {
+    console.error("Failed to fetch commit:", error);
+    return null;
+  }
+}
+
+// Calculate diff stats, optionally filtering to files matching a path prefix
+function calculateFilteredStats(
+  files: GitHubFileChange[],
+  pathFilter: string | null
+): CommitDiffStats {
+  if (!pathFilter) {
+    // No filter - sum all files
+    let additions = 0;
+    let deletions = 0;
+    for (const file of files) {
+      additions += file.additions;
+      deletions += file.deletions;
+    }
+    return { additions, deletions, filesChanged: files.length };
+  }
+
+  // Filter to files matching the path prefix
+  const matchingFiles = files.filter((f) =>
+    f.filename.startsWith(pathFilter) || f.filename.startsWith(pathFilter + "/")
+  );
+
+  let additions = 0;
+  let deletions = 0;
+  for (const file of matchingFiles) {
+    additions += file.additions;
+    deletions += file.deletions;
+  }
+
+  return {
+    additions,
+    deletions,
+    filesChanged: matchingFiles.length,
+    pathFilter,
+  };
+}
+
+// Fetch diff stats for a commit from any GitHub repo URL
+// If the URL contains a path (e.g., /tree/sha/rs/nns/governance),
+// only files under that path are counted
+export async function getCommitDiffStats(
+  commitUrl: string
+): Promise<CommitDiffStats | null> {
+  try {
+    const parsed = parseGitHubUrl(commitUrl);
+    if (!parsed) {
+      return null;
+    }
+
+    const { owner, repo, sha, path } = parsed;
+    const commit = await fetchCommitWithFiles(owner, repo, sha);
+    if (!commit) {
+      return null;
+    }
+
+    return calculateFilteredStats(commit.files, path);
   } catch (error) {
     console.error("Failed to fetch commit diff stats:", error);
     return null;
@@ -290,8 +384,10 @@ export async function getCommitDiffStats(
 }
 
 // Fetch diff stats using just the commit hash (tries common ICP repos)
+// Since we don't have a path, returns total commit stats
 export async function getCommitDiffStatsByHash(
-  commitHash: string
+  commitHash: string,
+  pathFilter?: string
 ): Promise<CommitDiffStats | null> {
   // Common DFINITY repos where ICP proposals typically come from
   const repos = [
@@ -301,33 +397,11 @@ export async function getCommitDiffStatsByHash(
     "dfinity/sns-aggregator",
   ];
 
-  const headers: Record<string, string> = {
-    Accept: "application/vnd.github.v3+json",
-  };
-
-  if (process.env.GITHUB_TOKEN) {
-    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-  }
-
-  for (const repo of repos) {
-    try {
-      const response = await fetch(
-        `https://api.github.com/repos/${repo}/commits/${commitHash}`,
-        {
-          headers,
-          next: { revalidate: 3600 },
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        return {
-          additions: data.stats?.additions || 0,
-          deletions: data.stats?.deletions || 0,
-        };
-      }
-    } catch {
-      // Continue to next repo
+  for (const repoPath of repos) {
+    const [owner, repo] = repoPath.split("/");
+    const commit = await fetchCommitWithFiles(owner, repo, commitHash);
+    if (commit) {
+      return calculateFilteredStats(commit.files, pathFilter || null);
     }
   }
 
