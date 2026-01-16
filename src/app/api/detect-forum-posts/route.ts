@@ -11,6 +11,12 @@ import {
 const FORUM_BASE_URL = "https://forum.dfinity.org";
 const NNS_CATEGORY_ID = 76;
 
+// Rate limiting configuration
+const MAX_PROPOSALS_PER_REQUEST = 3; // Process only a few per invocation to avoid Vercel timeout
+const DELAY_BETWEEN_PROPOSALS_MS = 5000; // 5 seconds between proposals
+const RETRY_BASE_DELAY_MS = 10000; // Start with 10 second retry delay
+const MAX_RETRIES = 2;
+
 interface DiscourseSearchResponse {
   topics?: Array<{
     id: number;
@@ -60,6 +66,38 @@ async function verifyQStashSignature(
   }
 }
 
+// Helper to delay execution
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Fetch with retry for rate limiting
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  proposalId: string
+): Promise<Response> {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const response = await fetch(url, options);
+
+    if (response.status === 429) {
+      if (attempt < MAX_RETRIES) {
+        const retryDelay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+        console.log(
+          `[detect-forum-posts] [${proposalId}] Rate limited (429), waiting ${retryDelay / 1000}s before retry ${attempt + 1}/${MAX_RETRIES}`
+        );
+        await delay(retryDelay);
+        continue;
+      }
+    }
+
+    return response;
+  }
+
+  // This shouldn't be reached, but TypeScript needs it
+  throw new Error("Max retries exceeded");
+}
+
 // Search the forum for a proposal
 async function searchForum(
   proposalId: string,
@@ -68,12 +106,16 @@ async function searchForum(
   const searchUrl = `${FORUM_BASE_URL}/search.json?q=${encodeURIComponent(proposalId)}`;
   console.log(`[detect-forum-posts] [${proposalId}] Searching: ${searchUrl}`);
 
-  const response = await fetch(searchUrl, {
-    headers: {
-      Cookie: cookies,
-      Accept: "application/json",
+  const response = await fetchWithRetry(
+    searchUrl,
+    {
+      headers: {
+        Cookie: cookies,
+        Accept: "application/json",
+      },
     },
-  });
+    proposalId
+  );
 
   console.log(
     `[detect-forum-posts] [${proposalId}] Search response: ${response.status} ${response.statusText}`
@@ -106,12 +148,16 @@ async function verifyThread(
     `[detect-forum-posts] [${proposalId}] Verifying thread: ${threadUrl}`
   );
 
-  const response = await fetch(threadUrl, {
-    headers: {
-      Cookie: cookies,
-      Accept: "application/json",
+  const response = await fetchWithRetry(
+    threadUrl,
+    {
+      headers: {
+        Cookie: cookies,
+        Accept: "application/json",
+      },
     },
-  });
+    proposalId
+  );
 
   if (!response.ok) {
     console.log(
@@ -282,11 +328,19 @@ export async function POST(request: NextRequest) {
     const needsForumSearch = await getProposalsWithoutCanonicalForum(proposalIds);
 
     console.log(
-      `[detect-forum-posts] Checking ${needsForumSearch.length} proposals without canonical forum posts`
+      `[detect-forum-posts] ${needsForumSearch.length} proposals without canonical forum posts`
     );
-    if (needsForumSearch.length > 0) {
+
+    // Limit how many we process per request to avoid Vercel timeout
+    const toProcess = needsForumSearch.slice(0, MAX_PROPOSALS_PER_REQUEST);
+    const skipped = needsForumSearch.length - toProcess.length;
+
+    console.log(
+      `[detect-forum-posts] Processing ${toProcess.length} proposals this request (skipping ${skipped} for next run)`
+    );
+    if (toProcess.length > 0) {
       console.log(
-        `[detect-forum-posts] Proposals to check: ${needsForumSearch.join(", ")}`
+        `[detect-forum-posts] Proposals to check: ${toProcess.join(", ")}`
       );
     }
 
@@ -300,10 +354,10 @@ export async function POST(request: NextRequest) {
       errors: [],
     };
 
-    for (let i = 0; i < needsForumSearch.length; i++) {
-      const proposalId = needsForumSearch[i];
+    for (let i = 0; i < toProcess.length; i++) {
+      const proposalId = toProcess[i];
       console.log(
-        `[detect-forum-posts] Processing ${i + 1}/${needsForumSearch.length}: proposal ${proposalId}`
+        `[detect-forum-posts] Processing ${i + 1}/${toProcess.length}: proposal ${proposalId}`
       );
       try {
         const result = await findForumThread(proposalId, cookies);
@@ -343,8 +397,13 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // Small delay to avoid rate limiting
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        // Delay between proposals to avoid rate limiting
+        if (i < toProcess.length - 1) {
+          console.log(
+            `[detect-forum-posts] Waiting ${DELAY_BETWEEN_PROPOSALS_MS / 1000}s before next proposal`
+          );
+          await delay(DELAY_BETWEEN_PROPOSALS_MS);
+        }
       } catch (error) {
         const errorMsg =
           error instanceof Error ? error.message : "Unknown error";
@@ -361,15 +420,17 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(
-      `[detect-forum-posts] Complete: ${results.found.length} found, ${results.notFound.length} not found, ${results.errors.length} errors`
+      `[detect-forum-posts] Complete: ${results.found.length} found, ${results.notFound.length} not found, ${results.errors.length} errors, ${skipped} skipped`
     );
 
     return NextResponse.json({
       success: true,
-      checked: needsForumSearch.length,
+      checked: toProcess.length,
       found: results.found.length,
       notFound: results.notFound.length,
       errors: results.errors.length,
+      skipped,
+      remaining: needsForumSearch.length - toProcess.length,
       details: results,
     });
   } catch (error) {

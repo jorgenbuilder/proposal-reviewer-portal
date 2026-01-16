@@ -225,6 +225,115 @@ export function getDashboardUrl(proposalId: string): string {
   return `https://dashboard.internetcomputer.org/proposal/${proposalId}`;
 }
 
+export interface CommitDiffStats {
+  additions: number;
+  deletions: number;
+}
+
+// Fetch diff stats for a commit from any GitHub repo URL
+export async function getCommitDiffStats(
+  commitUrl: string
+): Promise<CommitDiffStats | null> {
+  try {
+    // Parse the commit URL to extract owner, repo, and commit SHA
+    // Handles formats like:
+    // - https://github.com/owner/repo/commit/sha
+    // - https://github.com/owner/repo/tree/sha
+    // - https://github.com/owner/repo/compare/base...sha
+    const urlMatch = commitUrl.match(
+      /github\.com\/([^\/]+)\/([^\/]+)\/(?:commit|tree|compare\/[^\.]+\.\.\.?)([a-f0-9]+)/i
+    );
+
+    if (!urlMatch) {
+      // Try to match just a SHA if the URL contains one
+      const shaMatch = commitUrl.match(/([a-f0-9]{40})/i);
+      if (!shaMatch) {
+        return null;
+      }
+      // Can't determine repo from URL alone
+      return null;
+    }
+
+    const [, owner, repo, sha] = urlMatch;
+
+    const headers: Record<string, string> = {
+      Accept: "application/vnd.github.v3+json",
+    };
+
+    if (process.env.GITHUB_TOKEN) {
+      headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+    }
+
+    const response = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/commits/${sha}`,
+      {
+        headers,
+        next: { revalidate: 3600 }, // Cache for 1 hour since commits don't change
+      }
+    );
+
+    if (!response.ok) {
+      console.error(`GitHub API error fetching commit ${sha}:`, response.status);
+      return null;
+    }
+
+    const data = await response.json();
+
+    return {
+      additions: data.stats?.additions || 0,
+      deletions: data.stats?.deletions || 0,
+    };
+  } catch (error) {
+    console.error("Failed to fetch commit diff stats:", error);
+    return null;
+  }
+}
+
+// Fetch diff stats using just the commit hash (tries common ICP repos)
+export async function getCommitDiffStatsByHash(
+  commitHash: string
+): Promise<CommitDiffStats | null> {
+  // Common DFINITY repos where ICP proposals typically come from
+  const repos = [
+    "dfinity/ic",
+    "dfinity/nns-dapp",
+    "dfinity/internet-identity",
+    "dfinity/sns-aggregator",
+  ];
+
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github.v3+json",
+  };
+
+  if (process.env.GITHUB_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  }
+
+  for (const repo of repos) {
+    try {
+      const response = await fetch(
+        `https://api.github.com/repos/${repo}/commits/${commitHash}`,
+        {
+          headers,
+          next: { revalidate: 3600 },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          additions: data.stats?.additions || 0,
+          deletions: data.stats?.deletions || 0,
+        };
+      }
+    } catch {
+      // Continue to next repo
+    }
+  }
+
+  return null;
+}
+
 // Check if there's a successful commentary run for this proposal
 export async function hasSuccessfulCommentary(
   proposalId: string

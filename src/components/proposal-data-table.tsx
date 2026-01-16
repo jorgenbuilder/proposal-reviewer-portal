@@ -40,6 +40,7 @@ import type { VerificationStatus } from "@/lib/github";
 import { TOPIC_NAMES } from "@/lib/nns";
 import { NotificationPreferences } from "@/components/notification-preferences";
 import { registerServiceWorker } from "@/lib/push";
+import { DiffStatsBar } from "@/components/diff-stats";
 
 interface Proposal {
   id: string;
@@ -57,6 +58,8 @@ interface Proposal {
   commentaryTitle: string | null;
   forumThreadUrl: string | null;
   proposalTimestamp: string | null;
+  linesAdded: number | null;
+  linesRemoved: number | null;
 }
 
 async function fetchProposals(): Promise<Proposal[]> {
@@ -301,6 +304,17 @@ export function ProposalDataTable() {
           );
         },
         size: 150,
+      },
+      {
+        accessorKey: "linesAdded",
+        header: "Changes",
+        cell: ({ row }) => (
+          <DiffStatsBar
+            linesAdded={row.original.linesAdded}
+            linesRemoved={row.original.linesRemoved}
+          />
+        ),
+        size: 140,
       },
       {
         accessorKey: "verificationStatus",

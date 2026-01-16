@@ -15,9 +15,11 @@ import {
   deleteSubscription,
   updateSubscriptionSuccess,
   logNotification,
+  updateProposalDiffStats,
 } from "@/lib/db";
 import { sendPushNotification } from "@/lib/web-push-server";
 import { sendProposalNotificationEmail } from "@/lib/email";
+import { getCommitDiffStats, getCommitDiffStatsByHash } from "@/lib/github";
 
 // Verify cron secret or QStash signature
 function verifyAuth(request: Request): boolean {
@@ -125,6 +127,36 @@ export async function POST(request: Request) {
         proposal.url || null,
         proposalTimestamp
       );
+
+      // Fetch and store diff stats from GitHub (async, don't block notifications)
+      if (commitHash || proposal.url?.includes("github.com")) {
+        (async () => {
+          try {
+            let diffStats = null;
+
+            // Try to get stats from proposal URL first
+            if (proposal.url?.includes("github.com")) {
+              diffStats = await getCommitDiffStats(proposal.url);
+            }
+
+            // Fall back to searching by commit hash
+            if (!diffStats && commitHash) {
+              diffStats = await getCommitDiffStatsByHash(commitHash);
+            }
+
+            if (diffStats) {
+              await updateProposalDiffStats(
+                proposalIdStr,
+                diffStats.additions,
+                diffStats.deletions
+              );
+              console.log(`[check-proposals] Stored diff stats for #${proposalIdStr}: +${diffStats.additions} -${diffStats.deletions}`);
+            }
+          } catch (error) {
+            console.error(`[check-proposals] Failed to fetch diff stats for #${proposalIdStr}:`, error);
+          }
+        })();
+      }
 
       // Notify subscribers who are interested in this topic
       for (const sub of subscriptions) {

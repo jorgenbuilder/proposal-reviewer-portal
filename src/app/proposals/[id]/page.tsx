@@ -7,7 +7,7 @@ import { CommentaryWidget } from "@/components/commentary-widget";
 import { getProposal } from "@/lib/nns";
 import { getVerificationRunForProposal, getDashboardUrl } from "@/lib/github";
 import { getForumCategoryUrl } from "@/lib/forum";
-import { getLatestCommentary } from "@/lib/db";
+import { getLatestCommentary, getProposalDiffStats } from "@/lib/db";
 
 interface ProposalPageProps {
   params: Promise<{ id: string }>;
@@ -17,10 +17,11 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
   const { id } = await params;
   const proposalId = BigInt(id);
 
-  const [proposal, verificationRun, commentary] = await Promise.all([
+  const [proposal, verificationRun, commentary, diffStats] = await Promise.all([
     getProposal(proposalId),
     getVerificationRunForProposal(id),
     getLatestCommentary(id),
+    getProposalDiffStats(id),
   ]);
 
   if (!proposal) {
@@ -64,6 +65,8 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
           forumCategoryUrl={forumCategoryUrl}
           verificationRun={verificationRun}
           isUpgradeProposal={isUpgradeProposal}
+          linesAdded={diffStats?.linesAdded ?? null}
+          linesRemoved={diffStats?.linesRemoved ?? null}
         />
 
         {/* AI Commentary */}

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { ActionRun } from "@/lib/github";
+import { DiffStats } from "@/components/diff-stats";
 
 interface ForumThread {
   id: string;
@@ -24,6 +25,8 @@ interface ProposalHeaderProps {
   forumCategoryUrl: string;
   verificationRun: ActionRun | null;
   isUpgradeProposal: boolean;
+  linesAdded?: number | null;
+  linesRemoved?: number | null;
 }
 
 async function fetchForumThreads(proposalId: string): Promise<ForumThread[]> {
@@ -104,6 +107,8 @@ export function ProposalHeader({
   forumCategoryUrl,
   verificationRun,
   isUpgradeProposal,
+  linesAdded,
+  linesRemoved,
 }: ProposalHeaderProps) {
   const {
     data: threads = [],
@@ -135,19 +140,28 @@ export function ProposalHeader({
             <p className="text-sm text-muted-foreground">Proposal #{proposalId}</p>
             <CardTitle className="text-2xl">{title}</CardTitle>
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <StatusIndicator status={verificationStatus} />
-            <span
-              className={
-                verificationStatus === "verified"
-                  ? "text-green-600 dark:text-green-400"
-                  : verificationStatus === "failed"
-                  ? "text-red-600 dark:text-red-400"
-                  : "text-muted-foreground"
-              }
-            >
-              {statusText}
-            </span>
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2 text-sm">
+              <StatusIndicator status={verificationStatus} />
+              <span
+                className={
+                  verificationStatus === "verified"
+                    ? "text-green-600 dark:text-green-400"
+                    : verificationStatus === "failed"
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-muted-foreground"
+                }
+              >
+                {statusText}
+              </span>
+            </div>
+            {(linesAdded !== null || linesRemoved !== null) && (
+              <DiffStats
+                linesAdded={linesAdded ?? null}
+                linesRemoved={linesRemoved ?? null}
+                showTotal
+              />
+            )}
           </div>
         </div>
       </CardHeader>

@@ -58,6 +58,8 @@ export type Database = {
           review_forum_url: string | null
           reviewed_at: string | null
           proposal_timestamp: string | null
+          lines_added: number | null
+          lines_removed: number | null
         }
         Insert: {
           proposal_id: number
@@ -71,6 +73,8 @@ export type Database = {
           review_forum_url?: string | null
           reviewed_at?: string | null
           proposal_timestamp?: string | null
+          lines_added?: number | null
+          lines_removed?: number | null
         }
         Update: {
           proposal_id?: number
@@ -84,6 +88,8 @@ export type Database = {
           review_forum_url?: string | null
           reviewed_at?: string | null
           proposal_timestamp?: string | null
+          lines_added?: number | null
+          lines_removed?: number | null
         }
         Relationships: []
       }

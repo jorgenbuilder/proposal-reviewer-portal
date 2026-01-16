@@ -312,6 +312,77 @@ export async function getProposalReviewStatus(
   }
 }
 
+export async function updateProposalDiffStats(
+  proposalId: string,
+  linesAdded: number,
+  linesRemoved: number
+): Promise<void> {
+  const { error } = await supabase
+    .from('proposals_seen')
+    .update({
+      lines_added: linesAdded,
+      lines_removed: linesRemoved
+    })
+    .eq('proposal_id', parseInt(proposalId, 10))
+
+  if (error) throw error
+}
+
+export async function getProposalsWithoutDiffStats(
+  proposalIds: string[]
+): Promise<string[]> {
+  if (proposalIds.length === 0) return []
+
+  const { data, error } = await supabase
+    .from('proposals_seen')
+    .select('proposal_id, lines_added')
+    .in('proposal_id', proposalIds.map(id => parseInt(id, 10)))
+    .is('lines_added', null)
+
+  if (error) throw error
+  return (data || []).map(d => d.proposal_id.toString())
+}
+
+export async function getProposalDiffStats(
+  proposalId: string
+): Promise<{ linesAdded: number | null; linesRemoved: number | null } | null> {
+  const { data, error } = await supabase
+    .from('proposals_seen')
+    .select('lines_added, lines_removed')
+    .eq('proposal_id', parseInt(proposalId, 10))
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') return null // Not found
+    throw error
+  }
+
+  return {
+    linesAdded: data.lines_added,
+    linesRemoved: data.lines_removed
+  }
+}
+
+export async function getProposalsNeedingDiffStats(
+  limit: number = 50
+): Promise<Array<{ proposalId: string; commitHash: string | null; proposalUrl: string | null }>> {
+  const { data, error } = await supabase
+    .from('proposals_seen')
+    .select('proposal_id, commit_hash, proposal_url')
+    .is('lines_added', null)
+    .or('commit_hash.neq.null,proposal_url.ilike.%github.com%')
+    .order('proposal_id', { ascending: false })
+    .limit(limit)
+
+  if (error) throw error
+
+  return (data || []).map(row => ({
+    proposalId: row.proposal_id.toString(),
+    commitHash: row.commit_hash,
+    proposalUrl: row.proposal_url
+  }))
+}
+
 // Commentary operations
 
 export async function saveCommentary(

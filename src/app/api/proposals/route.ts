@@ -18,6 +18,8 @@ export interface ProposalResponse {
   commentaryTitle: string | null;
   forumThreadUrl: string | null;
   proposalTimestamp: string | null;
+  linesAdded: number | null;
+  linesRemoved: number | null;
 }
 
 export async function GET() {
@@ -55,6 +57,8 @@ export async function GET() {
           commentaryTitle: commentaryTitle || null,
           forumThreadUrl,
           proposalTimestamp: p.proposal_timestamp,
+          linesAdded: p.lines_added ?? null,
+          linesRemoved: p.lines_removed ?? null,
         };
       }),
     });
