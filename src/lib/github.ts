@@ -71,6 +71,57 @@ export async function getVerificationRunForProposal(
   }
 }
 
+// Check if there's a successful verification run for this proposal (any time, not just recent)
+// Returns true if a successful verify workflow exists
+export async function hasSuccessfulVerification(
+  proposalId: string
+): Promise<boolean> {
+  try {
+    const headers: Record<string, string> = {
+      Accept: "application/vnd.github.v3+json",
+    };
+
+    // Always use auth for fresh data in cron checks
+    if (process.env.GITHUB_TOKEN) {
+      headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+    }
+
+    const response = await fetch(
+      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs?per_page=100`,
+      {
+        headers,
+        cache: "no-store", // Always get fresh data
+      }
+    );
+
+    if (!response.ok) {
+      console.error("GitHub API error:", response.status);
+      return false;
+    }
+
+    const data = await response.json();
+
+    // Find any successful verify workflow for this proposal
+    const successfulRun = data.workflow_runs?.find((r: {
+      display_title?: string;
+      status?: string;
+      conclusion?: string;
+    }) => {
+      const matchesProposal =
+        r.display_title?.includes(`Verify Proposal #${proposalId}`);
+      const isCompleted = r.status === "completed";
+      const isSuccess = r.conclusion === "success";
+
+      return matchesProposal && isCompleted && isSuccess;
+    });
+
+    return !!successfulRun;
+  } catch (error) {
+    console.error("Failed to check for successful verification:", error);
+    return false;
+  }
+}
+
 // Check if ANY workflow (verify or commentary) exists for this proposal
 // Returns true if a run exists within the last `withinMinutes` minutes
 export async function hasRecentWorkflowRun(
