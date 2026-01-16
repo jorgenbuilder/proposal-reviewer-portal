@@ -7,7 +7,9 @@ import {
   getCommitDiffStats,
   getCommitDiffStatsByHash,
   parseGitHubUrl,
+  getDiffStatsFromPRs,
 } from "@/lib/github";
+import { getProposal } from "@/lib/nns";
 
 // Verify cron secret or QStash signature
 function verifyAuth(request: Request): boolean {
@@ -81,24 +83,42 @@ export async function POST(request: Request) {
 
       try {
         let diffStats = null;
-        let pathFilter: string | null = null;
+        let source = "";
 
-        // Try to get stats from proposal URL first (includes path filtering)
-        if (proposal.proposalUrl?.includes("github.com")) {
-          diffStats = await getCommitDiffStats(proposal.proposalUrl);
-          // Extract path filter for logging
-          const parsed = parseGitHubUrl(proposal.proposalUrl);
-          pathFilter = parsed?.path || null;
+        // Fetch full proposal details from NNS to get summary with PR links
+        const proposalDetails = await getProposal(BigInt(proposal.proposalId));
+        const proposalText = proposalDetails
+          ? `${proposalDetails.title}\n${proposalDetails.summary}\n${proposalDetails.url}`
+          : `${proposal.proposalUrl || ""}`;
+
+        // First try: Extract PRs from proposal text and sum their diffs
+        if (proposalText.includes("github.com")) {
+          diffStats = await getDiffStatsFromPRs(proposalText);
+          if (diffStats) {
+            source = "PRs";
+          }
         }
 
-        // Fall back to searching by commit hash
-        // Try to extract path from URL if available
+        // Second try: Get stats from proposal URL (includes path filtering)
+        if (!diffStats && proposal.proposalUrl?.includes("github.com")) {
+          diffStats = await getCommitDiffStats(proposal.proposalUrl);
+          if (diffStats) {
+            const parsed = parseGitHubUrl(proposal.proposalUrl);
+            source = parsed?.path ? `commit (${parsed.path})` : "commit";
+          }
+        }
+
+        // Third try: Search by commit hash
         if (!diffStats && proposal.commitHash) {
+          let pathFilter: string | null = null;
           if (proposal.proposalUrl) {
             const parsed = parseGitHubUrl(proposal.proposalUrl);
             pathFilter = parsed?.path || null;
           }
           diffStats = await getCommitDiffStatsByHash(proposal.commitHash, pathFilter || undefined);
+          if (diffStats) {
+            source = pathFilter ? `hash (${pathFilter})` : "hash";
+          }
         }
 
         if (diffStats) {
@@ -114,9 +134,8 @@ export async function POST(request: Request) {
             linesAdded: diffStats.additions,
             linesRemoved: diffStats.deletions,
           });
-          const filterInfo = pathFilter ? ` (filtered to ${pathFilter})` : "";
           console.log(
-            `[backfill-diff-stats] #${proposal.proposalId}: +${diffStats.additions} -${diffStats.deletions}${filterInfo}`
+            `[backfill-diff-stats] #${proposal.proposalId}: +${diffStats.additions} -${diffStats.deletions} (from ${source})`
           );
         } else {
           // Mark as 0/0 to indicate we tried but found no data

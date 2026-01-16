@@ -12,9 +12,9 @@ const FORUM_BASE_URL = "https://forum.dfinity.org";
 const NNS_CATEGORY_ID = 76;
 
 // Rate limiting configuration
-const MAX_PROPOSALS_PER_REQUEST = 3; // Process only a few per invocation to avoid Vercel timeout
-const DELAY_BETWEEN_PROPOSALS_MS = 5000; // 5 seconds between proposals
-const RETRY_BASE_DELAY_MS = 10000; // Start with 10 second retry delay
+const MAX_PROPOSALS_PER_REQUEST = 5; // Keep under 50% of Vercel timeout (~30s for 60s limit)
+const DELAY_BETWEEN_PROPOSALS_MS = 3000; // 3 seconds between proposals
+const RETRY_BASE_DELAY_MS = 5000; // Start with 5 second retry delay
 const MAX_RETRIES = 2;
 
 interface DiscourseSearchResponse {

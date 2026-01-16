@@ -408,6 +408,99 @@ export async function getCommitDiffStatsByHash(
   return null;
 }
 
+// Extract PR numbers from text (e.g., "github.com/dfinity/ic/pull/8247")
+export function extractPullRequestLinks(text: string): Array<{ owner: string; repo: string; prNumber: number }> {
+  const prRegex = /github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/gi;
+  const matches: Array<{ owner: string; repo: string; prNumber: number }> = [];
+  const seen = new Set<string>();
+
+  let match;
+  while ((match = prRegex.exec(text)) !== null) {
+    const [, owner, repo, prNum] = match;
+    const key = `${owner}/${repo}/${prNum}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      matches.push({ owner, repo, prNumber: parseInt(prNum, 10) });
+    }
+  }
+
+  return matches;
+}
+
+// Fetch diff stats for a pull request
+export async function getPullRequestDiffStats(
+  owner: string,
+  repo: string,
+  prNumber: number
+): Promise<CommitDiffStats | null> {
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github.v3+json",
+  };
+
+  if (process.env.GITHUB_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`,
+      {
+        headers,
+        next: { revalidate: 3600 },
+      }
+    );
+
+    if (!response.ok) {
+      console.error(`GitHub API error fetching PR ${prNumber}:`, response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    return {
+      additions: data.additions || 0,
+      deletions: data.deletions || 0,
+      filesChanged: data.changed_files || 0,
+    };
+  } catch (error) {
+    console.error("Failed to fetch PR diff stats:", error);
+    return null;
+  }
+}
+
+// Fetch combined diff stats from all PRs mentioned in text
+export async function getDiffStatsFromPRs(text: string): Promise<CommitDiffStats | null> {
+  const prs = extractPullRequestLinks(text);
+
+  if (prs.length === 0) {
+    return null;
+  }
+
+  let totalAdditions = 0;
+  let totalDeletions = 0;
+  let totalFiles = 0;
+  let foundAny = false;
+
+  for (const pr of prs) {
+    const stats = await getPullRequestDiffStats(pr.owner, pr.repo, pr.prNumber);
+    if (stats) {
+      foundAny = true;
+      totalAdditions += stats.additions;
+      totalDeletions += stats.deletions;
+      totalFiles += stats.filesChanged || 0;
+    }
+  }
+
+  if (!foundAny) {
+    return null;
+  }
+
+  return {
+    additions: totalAdditions,
+    deletions: totalDeletions,
+    filesChanged: totalFiles,
+  };
+}
+
 // Check if there's a successful commentary run for this proposal
 export async function hasSuccessfulCommentary(
   proposalId: string
