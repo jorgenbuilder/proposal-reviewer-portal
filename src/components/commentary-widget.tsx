@@ -23,6 +23,27 @@ function formatDuration(ms: number): string {
   return `${seconds}s`
 }
 
+function extractGitHubRepo(url: string): string | null {
+  const match = url.match(/github\.com\/([^/]+\/[^/]+)/)
+  return match ? match[1] : null
+}
+
+function getCommitUrl(commitHash: string, sources: CommentaryWithMetadata['sources']): string {
+  const gitSource = sources.find(
+    s => (s.type === 'git_diff' || s.type === 'github_pr') && s.url
+  )
+
+  if (gitSource?.url) {
+    const repo = extractGitHubRepo(gitSource.url)
+    if (repo) {
+      return `https://github.com/${repo}/commit/${commitHash}`
+    }
+  }
+
+  // Fallback to GitHub search if no repo found
+  return `https://github.com/search?q=${commitHash}&type=commits`
+}
+
 function formatSourceLink(source: CommentaryWithMetadata['sources'][0]): string {
   const typeEmoji: Record<string, string> = {
     proposal_body: '📜',
@@ -177,7 +198,7 @@ export function CommentaryWidget({
                 return (
                   <div key={commit.commit_hash} className="border-l-2 border-muted pl-4">
                     <a
-                      href={`https://github.com/dfinity/ic/commit/${commit.commit_hash}`}
+                      href={getCommitUrl(commit.commit_hash, commentary.sources)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="font-mono text-xs text-primary hover:underline"
