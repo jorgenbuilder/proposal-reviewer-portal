@@ -164,7 +164,8 @@ export async function logNotification(
 export async function addForumThread(
   proposalId: string,
   forumUrl: string,
-  threadTitle?: string
+  threadTitle?: string,
+  isCanonical?: boolean
 ): Promise<ProposalForumThread> {
   const { data, error } = await supabase
     .from('proposal_forum_threads')
@@ -172,7 +173,8 @@ export async function addForumThread(
       {
         proposal_id: proposalId,
         forum_url: forumUrl,
-        thread_title: threadTitle || null
+        thread_title: threadTitle || null,
+        is_canonical: isCanonical || false
       },
       { onConflict: 'proposal_id,forum_url' }
     )
@@ -181,6 +183,24 @@ export async function addForumThread(
 
   if (error) throw error
   return data
+}
+
+export async function getProposalsWithoutCanonicalForum(
+  proposalIds: string[]
+): Promise<string[]> {
+  if (proposalIds.length === 0) return []
+
+  // Get all proposals that DO have a canonical forum thread
+  const { data, error } = await supabase
+    .from('proposal_forum_threads')
+    .select('proposal_id')
+    .in('proposal_id', proposalIds)
+    .eq('is_canonical', true)
+
+  if (error) throw error
+
+  const withCanonical = new Set((data || []).map(d => d.proposal_id))
+  return proposalIds.filter(id => !withCanonical.has(id))
 }
 
 export async function removeForumThread(
