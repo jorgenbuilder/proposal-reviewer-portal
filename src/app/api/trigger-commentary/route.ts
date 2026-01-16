@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Receiver } from "@upstash/qstash";
-import { getRecentProposals } from "@/lib/db";
-import { hasSuccessfulVerification, hasRecentWorkflowRun } from "@/lib/github";
+import { getRecentProposals, getCommentaryCount } from "@/lib/db";
+import { hasRecentCommentaryRun } from "@/lib/github";
 import { getProposal, MIN_PROPOSAL_ID } from "@/lib/nns";
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -41,11 +41,8 @@ async function verifyQStashSignature(
   }
 }
 
-// Trigger GitHub Actions workflow
-async function triggerWorkflow(
-  workflowId: string,
-  proposalId: string
-): Promise<boolean> {
+// Trigger commentary GitHub Actions workflow
+async function triggerCommentaryWorkflow(proposalId: string): Promise<boolean> {
   if (!GITHUB_TOKEN) {
     console.error("GITHUB_TOKEN not configured");
     return false;
@@ -53,7 +50,7 @@ async function triggerWorkflow(
 
   try {
     const response = await fetch(
-      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/workflows/${workflowId}/dispatches`,
+      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/workflows/commentary.yml/dispatches`,
       {
         method: "POST",
         headers: {
@@ -73,25 +70,22 @@ async function triggerWorkflow(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(
-        `Failed to trigger ${workflowId} for proposal ${proposalId}:`,
+        `Failed to trigger commentary for proposal ${proposalId}:`,
         response.status,
         errorText
       );
       return false;
     }
 
-    console.log(`Triggered ${workflowId} for proposal ${proposalId}`);
+    console.log(`Triggered commentary workflow for proposal ${proposalId}`);
     return true;
   } catch (error) {
-    console.error(`Error triggering ${workflowId} for proposal ${proposalId}:`, error);
+    console.error(
+      `Error triggering commentary for proposal ${proposalId}:`,
+      error
+    );
     return false;
   }
-}
-
-// Trigger verify workflow only
-// Commentary is now triggered separately via /api/trigger-commentary
-async function triggerVerifyWorkflow(proposalId: string): Promise<boolean> {
-  return triggerWorkflow("verify.yml", proposalId);
 }
 
 export async function POST(request: NextRequest) {
@@ -112,23 +106,29 @@ export async function POST(request: NextRequest) {
     // Get recent proposals
     const proposals = await getRecentProposals(20);
     const triggeredProposals: string[] = [];
-    const skippedProposals: string[] = [];
-    const failedWorkflows: { proposalId: string; reason: string }[] = [];
+    const skippedProposals: { proposalId: string; reason: string }[] = [];
+    const failedProposals: { proposalId: string; reason: string }[] = [];
 
     for (const proposal of proposals) {
       const proposalIdBigInt = BigInt(proposal.proposal_id);
 
       // Skip if below minimum proposal ID
       if (proposalIdBigInt < MIN_PROPOSAL_ID) {
-        skippedProposals.push(proposal.proposal_id);
+        skippedProposals.push({
+          proposalId: proposal.proposal_id,
+          reason: "below minimum proposal ID",
+        });
         continue;
       }
 
-      // Check if this proposal is an upgrade proposal (needs verification)
+      // Check if this proposal is an upgrade proposal (needs commentary)
       const proposalDetail = await getProposal(proposalIdBigInt);
 
       if (!proposalDetail) {
-        skippedProposals.push(proposal.proposal_id);
+        skippedProposals.push({
+          proposalId: proposal.proposal_id,
+          reason: "could not fetch proposal details",
+        });
         continue;
       }
 
@@ -137,42 +137,47 @@ export async function POST(request: NextRequest) {
       );
 
       if (!isUpgradeProposal) {
-        skippedProposals.push(proposal.proposal_id);
+        skippedProposals.push({
+          proposalId: proposal.proposal_id,
+          reason: "not an upgrade proposal",
+        });
         continue;
       }
 
-      // Check if verification already succeeded - never re-verify successful proposals
-      const alreadyVerified = await hasSuccessfulVerification(
-        proposal.proposal_id
-      );
-
-      if (alreadyVerified) {
-        skippedProposals.push(proposal.proposal_id);
+      // Check if commentary already exists in database
+      const commentaryCount = await getCommentaryCount(proposal.proposal_id);
+      if (commentaryCount > 0) {
+        skippedProposals.push({
+          proposalId: proposal.proposal_id,
+          reason: "commentary already exists",
+        });
         continue;
       }
 
-      // Check if any workflow was triggered recently (within last 10 minutes)
-      // This prevents duplicate runs when cron runs every 3 minutes
-      const hasRecentRun = await hasRecentWorkflowRun(
+      // Check if commentary workflow was triggered recently (within last 30 minutes)
+      // Use longer window than verification since commentary takes longer
+      const hasRecentRun = await hasRecentCommentaryRun(
         proposal.proposal_id,
-        10 // Check last 10 minutes
+        30
       );
 
       if (hasRecentRun) {
-        skippedProposals.push(proposal.proposal_id);
+        skippedProposals.push({
+          proposalId: proposal.proposal_id,
+          reason: "recent commentary run exists",
+        });
         continue;
       }
 
-      // Trigger verify workflow only
-      // Commentary is triggered separately via /api/trigger-commentary
-      const success = await triggerVerifyWorkflow(proposal.proposal_id);
+      // Trigger commentary workflow
+      const success = await triggerCommentaryWorkflow(proposal.proposal_id);
 
       if (success) {
         triggeredProposals.push(proposal.proposal_id);
       } else {
-        failedWorkflows.push({
+        failedProposals.push({
           proposalId: proposal.proposal_id,
-          reason: "verify workflow failed to trigger",
+          reason: "failed to trigger workflow",
         });
       }
 
@@ -184,11 +189,11 @@ export async function POST(request: NextRequest) {
       success: true,
       triggered: triggeredProposals,
       skipped: skippedProposals,
-      failedWorkflows: failedWorkflows.length > 0 ? failedWorkflows : undefined,
-      message: `Triggered workflows for ${triggeredProposals.length} proposals`,
+      failed: failedProposals.length > 0 ? failedProposals : undefined,
+      message: `Triggered commentary for ${triggeredProposals.length} proposals`,
     });
   } catch (error) {
-    console.error("Error in trigger-verification:", error);
+    console.error("Error in trigger-commentary:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -205,6 +210,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Reuse POST logic
-  return POST(request);
+  // Create a mock request with the same headers
+  const mockRequest = new NextRequest(request.url, {
+    method: "POST",
+    headers: request.headers,
+  });
+
+  return POST(mockRequest);
 }

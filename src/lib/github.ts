@@ -182,6 +182,105 @@ export function getDashboardUrl(proposalId: string): string {
   return `https://dashboard.internetcomputer.org/proposal/${proposalId}`;
 }
 
+// Check if there's a successful commentary run for this proposal
+export async function hasSuccessfulCommentary(
+  proposalId: string
+): Promise<boolean> {
+  try {
+    const headers: Record<string, string> = {
+      Accept: "application/vnd.github.v3+json",
+    };
+
+    if (process.env.GITHUB_TOKEN) {
+      headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+    }
+
+    const response = await fetch(
+      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs?per_page=100`,
+      {
+        headers,
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      console.error("GitHub API error:", response.status);
+      return false;
+    }
+
+    const data = await response.json();
+
+    // Find any successful commentary workflow for this proposal
+    const successfulRun = data.workflow_runs?.find((r: {
+      display_title?: string;
+      status?: string;
+      conclusion?: string;
+    }) => {
+      const matchesProposal =
+        r.display_title?.includes(`Commentary for Proposal #${proposalId}`);
+      const isCompleted = r.status === "completed";
+      const isSuccess = r.conclusion === "success";
+
+      return matchesProposal && isCompleted && isSuccess;
+    });
+
+    return !!successfulRun;
+  } catch (error) {
+    console.error("Failed to check for successful commentary:", error);
+    return false;
+  }
+}
+
+// Check if there's a recent commentary workflow run for this proposal
+export async function hasRecentCommentaryRun(
+  proposalId: string,
+  withinMinutes = 10
+): Promise<boolean> {
+  try {
+    const headers: Record<string, string> = {
+      Accept: "application/vnd.github.v3+json",
+    };
+
+    if (process.env.GITHUB_TOKEN) {
+      headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+    }
+
+    const response = await fetch(
+      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs?per_page=100`,
+      {
+        headers,
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      console.error("GitHub API error:", response.status);
+      return false;
+    }
+
+    const data = await response.json();
+    const cutoffTime = new Date(Date.now() - withinMinutes * 60 * 1000);
+
+    // Find any commentary run for this proposal created recently
+    const recentRun = data.workflow_runs?.find((r: {
+      display_title?: string;
+      created_at?: string;
+    }) => {
+      const matchesProposal =
+        r.display_title?.includes(`Commentary for Proposal #${proposalId}`);
+      const createdAt = r.created_at ? new Date(r.created_at) : null;
+      const isRecent = createdAt && createdAt > cutoffTime;
+
+      return matchesProposal && isRecent;
+    });
+
+    return !!recentRun;
+  } catch (error) {
+    console.error("Failed to check for recent commentary runs:", error);
+    return false;
+  }
+}
+
 export type VerificationStatus =
   | "verified"
   | "failed"

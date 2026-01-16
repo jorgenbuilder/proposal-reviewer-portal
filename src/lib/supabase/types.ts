@@ -124,6 +124,7 @@ export type Database = {
           forum_url: string
           thread_title: string | null
           added_at: string
+          is_canonical: boolean
         }
         Insert: {
           id?: string
@@ -131,6 +132,7 @@ export type Database = {
           forum_url: string
           thread_title?: string | null
           added_at?: string
+          is_canonical?: boolean
         }
         Update: {
           id?: string
@@ -138,6 +140,7 @@ export type Database = {
           forum_url?: string
           thread_title?: string | null
           added_at?: string
+          is_canonical?: boolean
         }
         Relationships: []
       }

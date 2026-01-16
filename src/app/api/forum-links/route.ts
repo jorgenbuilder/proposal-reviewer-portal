@@ -73,10 +73,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { proposalId, forumUrl, threadTitle } = body as {
+    const { proposalId, forumUrl, threadTitle, isCanonical } = body as {
       proposalId?: string;
       forumUrl?: string;
       threadTitle?: string;
+      isCanonical?: boolean;
     };
 
     if (!proposalId || !forumUrl) {
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const thread = await addForumThread(proposalId, forumUrl, threadTitle);
+    const thread = await addForumThread(proposalId, forumUrl, threadTitle, isCanonical);
     return corsResponse(NextResponse.json({ success: true, thread }));
   } catch (error) {
     console.error("Failed to add forum thread:", error);
