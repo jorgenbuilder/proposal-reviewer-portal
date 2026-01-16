@@ -17,10 +17,10 @@ interface ProposalHeaderProps {
   proposalId: string;
   title: string;
   dashboardUrl: string;
-  proposalUrl?: string;
-  canisterId?: string;
-  commitHash?: string;
-  expectedWasmHash?: string;
+  proposalUrl?: string | null;
+  canisterId?: string | null;
+  commitHash?: string | null;
+  expectedWasmHash?: string | null;
   forumCategoryUrl: string;
   verificationRun: ActionRun | null;
   isUpgradeProposal: boolean;
