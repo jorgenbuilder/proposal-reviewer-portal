@@ -408,19 +408,36 @@ export async function getCommitDiffStatsByHash(
   return null;
 }
 
-// Extract PR numbers from text (e.g., "github.com/dfinity/ic/pull/8247")
+// Extract PR numbers from text
+// Handles:
+// - Full URLs: "github.com/dfinity/ic/pull/8247"
+// - Short refs in commit messages: "(#8247)" - assumes dfinity/ic
 export function extractPullRequestLinks(text: string): Array<{ owner: string; repo: string; prNumber: number }> {
-  const prRegex = /github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/gi;
   const matches: Array<{ owner: string; repo: string; prNumber: number }> = [];
   const seen = new Set<string>();
 
+  // First, find full PR URLs
+  const fullUrlRegex = /github\.com\/([^\/\s]+)\/([^\/\s]+)\/pull\/(\d+)/gi;
   let match;
-  while ((match = prRegex.exec(text)) !== null) {
+  while ((match = fullUrlRegex.exec(text)) !== null) {
     const [, owner, repo, prNum] = match;
     const key = `${owner}/${repo}/${prNum}`;
     if (!seen.has(key)) {
       seen.add(key);
       matches.push({ owner, repo, prNumber: parseInt(prNum, 10) });
+    }
+  }
+
+  // Also find short PR references like "(#8247)" in commit messages
+  // These are typically from dfinity/ic proposals
+  const shortRefRegex = /\(#(\d{4,})\)/g;
+  while ((match = shortRefRegex.exec(text)) !== null) {
+    const prNum = match[1];
+    // Assume dfinity/ic for short references
+    const key = `dfinity/ic/${prNum}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      matches.push({ owner: "dfinity", repo: "ic", prNumber: parseInt(prNum, 10) });
     }
   }
 
