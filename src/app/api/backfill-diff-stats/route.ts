@@ -48,11 +48,12 @@ export async function POST(request: Request) {
       parseInt(url.searchParams.get("batch") || "20", 10),
       100
     );
+    const forceRefresh = url.searchParams.get("force") === "true";
 
-    console.log(`[backfill-diff-stats] Starting backfill with batch size ${batchSize}...`);
+    console.log(`[backfill-diff-stats] Starting backfill with batch size ${batchSize}, force=${forceRefresh}...`);
 
     // Get proposals that need diff stats
-    const proposals = await getProposalsNeedingDiffStats(batchSize);
+    const proposals = await getProposalsNeedingDiffStats(batchSize, forceRefresh);
     console.log(`[backfill-diff-stats] Found ${proposals.length} proposals needing diff stats`);
 
     if (proposals.length === 0) {

@@ -364,15 +364,25 @@ export async function getProposalDiffStats(
 }
 
 export async function getProposalsNeedingDiffStats(
-  limit: number = 50
+  limit: number = 50,
+  forceRefresh: boolean = false
 ): Promise<Array<{ proposalId: string; commitHash: string | null; proposalUrl: string | null }>> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('proposals_seen')
     .select('proposal_id, commit_hash, proposal_url')
-    .is('lines_added', null)
+
+  if (!forceRefresh) {
+    // Only get proposals without diff stats
+    query = query.is('lines_added', null)
+  }
+
+  // Only include proposals that have GitHub data to fetch from
+  query = query
     .or('commit_hash.neq.null,proposal_url.ilike.%github.com%')
     .order('proposal_id', { ascending: false })
     .limit(limit)
+
+  const { data, error } = await query
 
   if (error) throw error
 
