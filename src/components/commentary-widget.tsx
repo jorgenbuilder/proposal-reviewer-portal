@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/card"
 import type { CommentaryWithMetadata } from "@/types/commentary"
 import { EnhancedMarkdown } from "@/components/enhanced-markdown"
+import { DiffStats } from "@/components/diff-stats"
 
 interface CommentaryWidgetProps {
   commentary: CommentaryWithMetadata | null
@@ -197,14 +198,23 @@ export function CommentaryWidget({
                 const shortHash = commit.commit_hash.substring(0, 8)
                 return (
                   <div key={commit.commit_hash} className="border-l-2 border-muted pl-4">
-                    <a
-                      href={getCommitUrl(commit.commit_hash, commentary.sources)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono text-xs text-primary hover:underline"
-                    >
-                      {shortHash}
-                    </a>
+                    <div className="flex items-center gap-3">
+                      <a
+                        href={getCommitUrl(commit.commit_hash, commentary.sources)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono text-xs text-primary hover:underline"
+                      >
+                        {shortHash}
+                      </a>
+                      {(commit.additions !== undefined || commit.deletions !== undefined) && (
+                        <DiffStats
+                          linesAdded={commit.additions ?? null}
+                          linesRemoved={commit.deletions ?? null}
+                          compact
+                        />
+                      )}
+                    </div>
                     <EnhancedMarkdown className="mt-1">{commit.summary}</EnhancedMarkdown>
                   </div>
                 )

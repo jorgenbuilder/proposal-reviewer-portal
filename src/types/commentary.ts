@@ -8,6 +8,8 @@ export interface CommentarySource {
 export interface CommitSummary {
   commit_hash: string
   summary: string
+  additions?: number
+  deletions?: number
 }
 
 export interface FileSummary {

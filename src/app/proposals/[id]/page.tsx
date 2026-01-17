@@ -5,7 +5,7 @@ import { ProposalSeenMarker } from "@/components/proposal-seen-marker";
 import { ReviewSubmitWidget } from "@/components/review-submit-widget";
 import { CommentaryWidget } from "@/components/commentary-widget";
 import { getProposal } from "@/lib/nns";
-import { getVerificationRunForProposal, getDashboardUrl } from "@/lib/github";
+import { getVerificationRunForProposal, getDashboardUrl, getMultipleCommitStats } from "@/lib/github";
 import { getForumCategoryUrl } from "@/lib/forum";
 import { getLatestCommentary, getProposalDiffStats } from "@/lib/db";
 
@@ -26,6 +26,25 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
 
   if (!proposal) {
     notFound();
+  }
+
+  // Enrich commentary commits with diff stats
+  let enrichedCommentary = commentary;
+  if (commentary?.commit_summaries && commentary.commit_summaries.length > 0) {
+    const commitHashes = commentary.commit_summaries.map((c) => c.commit_hash);
+    const commitStats = await getMultipleCommitStats(commitHashes);
+
+    enrichedCommentary = {
+      ...commentary,
+      commit_summaries: commentary.commit_summaries.map((commit) => {
+        const stats = commitStats.get(commit.commit_hash);
+        return {
+          ...commit,
+          additions: stats?.additions,
+          deletions: stats?.deletions,
+        };
+      }),
+    };
   }
 
   const dashboardUrl = getDashboardUrl(id);
@@ -70,7 +89,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
         />
 
         {/* AI Commentary */}
-        <CommentaryWidget commentary={commentary} proposalId={id} />
+        <CommentaryWidget commentary={enrichedCommentary} proposalId={id} />
 
         {/* Review Submission Widget */}
         <ReviewSubmitWidget proposalId={id} />

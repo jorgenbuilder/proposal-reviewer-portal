@@ -505,6 +505,33 @@ export async function getDiffStatsFromCommits(text: string): Promise<CommitDiffS
   };
 }
 
+// Fetch diff stats for a specific commit hash (public version of fetchCommitStats)
+export async function getCommitStats(commitHash: string): Promise<CommitDiffStats | null> {
+  return fetchCommitStats(commitHash);
+}
+
+// Fetch diff stats for multiple commits in parallel
+export async function getMultipleCommitStats(
+  commitHashes: string[]
+): Promise<Map<string, CommitDiffStats>> {
+  const results = new Map<string, CommitDiffStats>();
+
+  // Fetch in parallel with a small batch size to avoid rate limits
+  const batchSize = 5;
+  for (let i = 0; i < commitHashes.length; i += batchSize) {
+    const batch = commitHashes.slice(i, i + batchSize);
+    const promises = batch.map(async (hash) => {
+      const stats = await fetchCommitStats(hash);
+      if (stats) {
+        results.set(hash, stats);
+      }
+    });
+    await Promise.all(promises);
+  }
+
+  return results;
+}
+
 // Check if there's a successful commentary run for this proposal
 export async function hasSuccessfulCommentary(
   proposalId: string
