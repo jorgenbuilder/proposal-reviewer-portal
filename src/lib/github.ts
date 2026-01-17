@@ -408,48 +408,39 @@ export async function getCommitDiffStatsByHash(
   return null;
 }
 
-// Extract PR numbers from text
-// Handles:
-// - Full URLs: "github.com/dfinity/ic/pull/8247"
-// - Short refs in commit messages: "(#8247)" - assumes dfinity/ic
-export function extractPullRequestLinks(text: string): Array<{ owner: string; repo: string; prNumber: number }> {
-  const matches: Array<{ owner: string; repo: string; prNumber: number }> = [];
+// Extract short commit hashes from proposal body
+// Proposals list commits like:
+//  192a55fb80 feat(registry): CRP-2618 migrate ...
+//  e83e0ab592 feat(crypto): CRP-2618 require ...
+// These appear after "## New Commits" or similar sections
+export function extractCommitHashesFromBody(text: string): string[] {
+  const hashes: string[] = [];
   const seen = new Set<string>();
 
-  // First, find full PR URLs
-  const fullUrlRegex = /github\.com\/([^\/\s]+)\/([^\/\s]+)\/pull\/(\d+)/gi;
+  // Look for short commit hashes (8-12 hex chars) at the start of lines
+  // Pattern: whitespace, then 8-12 hex chars, then space and commit message
+  const commitLineRegex = /^\s*([a-f0-9]{8,12})\s+\S/gim;
   let match;
-  while ((match = fullUrlRegex.exec(text)) !== null) {
-    const [, owner, repo, prNum] = match;
-    const key = `${owner}/${repo}/${prNum}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      matches.push({ owner, repo, prNumber: parseInt(prNum, 10) });
+  while ((match = commitLineRegex.exec(text)) !== null) {
+    const hash = match[1];
+    if (!seen.has(hash)) {
+      seen.add(hash);
+      hashes.push(hash);
     }
   }
 
-  // Also find short PR references like "(#8247)" in commit messages
-  // These are typically from dfinity/ic proposals
-  const shortRefRegex = /\(#(\d{4,})\)/g;
-  while ((match = shortRefRegex.exec(text)) !== null) {
-    const prNum = match[1];
-    // Assume dfinity/ic for short references
-    const key = `dfinity/ic/${prNum}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      matches.push({ owner: "dfinity", repo: "ic", prNumber: parseInt(prNum, 10) });
-    }
-  }
-
-  return matches;
+  return hashes;
 }
 
-// Fetch diff stats for a pull request
-export async function getPullRequestDiffStats(
-  owner: string,
-  repo: string,
-  prNumber: number
-): Promise<CommitDiffStats | null> {
+// Fetch diff stats for a single commit (tries common DFINITY repos)
+async function fetchCommitStats(commitHash: string): Promise<CommitDiffStats | null> {
+  const repos = [
+    "dfinity/ic",
+    "dfinity/nns-dapp",
+    "dfinity/internet-identity",
+    "dfinity/sns-aggregator",
+  ];
+
   const headers: Record<string, string> = {
     Accept: "application/vnd.github.v3+json",
   };
@@ -458,52 +449,49 @@ export async function getPullRequestDiffStats(
     headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
   }
 
-  try {
-    const response = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`,
-      {
-        headers,
-        next: { revalidate: 3600 },
+  for (const repoPath of repos) {
+    try {
+      const response = await fetch(
+        `https://api.github.com/repos/${repoPath}/commits/${commitHash}`,
+        {
+          headers,
+          next: { revalidate: 3600 },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          additions: data.stats?.additions || 0,
+          deletions: data.stats?.deletions || 0,
+        };
       }
-    );
-
-    if (!response.ok) {
-      console.error(`GitHub API error fetching PR ${prNumber}:`, response.status);
-      return null;
+    } catch {
+      // Continue to next repo
     }
-
-    const data = await response.json();
-    return {
-      additions: data.additions || 0,
-      deletions: data.deletions || 0,
-      filesChanged: data.changed_files || 0,
-    };
-  } catch (error) {
-    console.error("Failed to fetch PR diff stats:", error);
-    return null;
   }
+
+  return null;
 }
 
-// Fetch combined diff stats from all PRs mentioned in text
-export async function getDiffStatsFromPRs(text: string): Promise<CommitDiffStats | null> {
-  const prs = extractPullRequestLinks(text);
+// Fetch combined diff stats from all commits listed in proposal body
+export async function getDiffStatsFromCommits(text: string): Promise<CommitDiffStats | null> {
+  const hashes = extractCommitHashesFromBody(text);
 
-  if (prs.length === 0) {
+  if (hashes.length === 0) {
     return null;
   }
 
   let totalAdditions = 0;
   let totalDeletions = 0;
-  let totalFiles = 0;
   let foundAny = false;
 
-  for (const pr of prs) {
-    const stats = await getPullRequestDiffStats(pr.owner, pr.repo, pr.prNumber);
+  for (const hash of hashes) {
+    const stats = await fetchCommitStats(hash);
     if (stats) {
       foundAny = true;
       totalAdditions += stats.additions;
       totalDeletions += stats.deletions;
-      totalFiles += stats.filesChanged || 0;
     }
   }
 
@@ -514,7 +502,6 @@ export async function getDiffStatsFromPRs(text: string): Promise<CommitDiffStats
   return {
     additions: totalAdditions,
     deletions: totalDeletions,
-    filesChanged: totalFiles,
   };
 }
 

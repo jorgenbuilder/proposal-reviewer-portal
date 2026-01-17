@@ -19,7 +19,7 @@ import {
 } from "@/lib/db";
 import { sendPushNotification } from "@/lib/web-push-server";
 import { sendProposalNotificationEmail } from "@/lib/email";
-import { getCommitDiffStats, getCommitDiffStatsByHash, parseGitHubUrl, getDiffStatsFromPRs } from "@/lib/github";
+import { getCommitDiffStats, getCommitDiffStatsByHash, parseGitHubUrl, getDiffStatsFromCommits } from "@/lib/github";
 
 // Verify cron secret or QStash signature
 function verifyAuth(request: Request): boolean {
@@ -136,10 +136,10 @@ export async function POST(request: Request) {
             let diffStats = null;
             let source = "";
 
-            // First try: Extract PRs from proposal text and sum their diffs
-            diffStats = await getDiffStatsFromPRs(proposalText);
+            // First try: Extract commits listed in proposal body and sum their diffs
+            diffStats = await getDiffStatsFromCommits(proposalText);
             if (diffStats) {
-              source = "PRs";
+              source = "commits";
             }
 
             // Second try: Get stats from proposal URL (includes path filtering)

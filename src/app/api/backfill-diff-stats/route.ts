@@ -7,7 +7,7 @@ import {
   getCommitDiffStats,
   getCommitDiffStatsByHash,
   parseGitHubUrl,
-  getDiffStatsFromPRs,
+  getDiffStatsFromCommits,
 } from "@/lib/github";
 import { getProposal } from "@/lib/nns";
 
@@ -92,12 +92,10 @@ export async function POST(request: Request) {
           ? `${proposalDetails.title}\n${proposalDetails.summary}\n${proposalDetails.url}`
           : `${proposal.proposalUrl || ""}`;
 
-        // First try: Extract PRs from proposal text and sum their diffs
-        if (proposalText.includes("github.com")) {
-          diffStats = await getDiffStatsFromPRs(proposalText);
-          if (diffStats) {
-            source = "PRs";
-          }
+        // First try: Extract commits listed in proposal body and sum their diffs
+        diffStats = await getDiffStatsFromCommits(proposalText);
+        if (diffStats) {
+          source = "commits";
         }
 
         // Second try: Get stats from proposal URL (includes path filtering)
