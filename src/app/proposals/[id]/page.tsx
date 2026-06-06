@@ -50,10 +50,9 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
   const dashboardUrl = getDashboardUrl(id);
   const forumCategoryUrl = getForumCategoryUrl();
 
-  // Determine if this is an upgrade code proposal by checking for WASM hash or canister ID
-  const isUpgradeProposal = !!(
-    proposal.expectedWasmHash || proposal.canisterId
-  );
+  // proposalType ("upgrade" | "install" | "other") drives both build
+  // verification and AI commentary; see isVerifiableProposal.
+  const proposalType = proposal.proposalType;
 
   return (
     <div className="min-h-screen bg-background">
@@ -83,7 +82,7 @@ export default async function ProposalPage({ params }: ProposalPageProps) {
           expectedWasmHash={proposal.expectedWasmHash}
           forumCategoryUrl={forumCategoryUrl}
           verificationRun={verificationRun}
-          isUpgradeProposal={isUpgradeProposal}
+          proposalType={proposalType}
           linesAdded={diffStats?.linesAdded ?? null}
           linesRemoved={diffStats?.linesRemoved ?? null}
         />

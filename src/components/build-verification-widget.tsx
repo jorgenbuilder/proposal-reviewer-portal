@@ -1,4 +1,5 @@
 import { ActionRun } from "@/lib/github";
+import { type ProposalType, isVerifiableProposal } from "@/lib/proposal-types";
 import {
   Card,
   CardContent,
@@ -9,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 interface BuildVerificationWidgetProps {
-  isUpgradeProposal: boolean;
+  proposalType: ProposalType;
   verificationRun: ActionRun | null;
   proposalId: string;
 }
@@ -22,10 +23,10 @@ type VerificationStatus =
   | "not_expected";
 
 function getVerificationStatus(
-  isUpgradeProposal: boolean,
+  isVerifiable: boolean,
   verificationRun: ActionRun | null
 ): VerificationStatus {
-  if (!isUpgradeProposal) {
+  if (!isVerifiable) {
     return "not_expected";
   }
 
@@ -117,12 +118,24 @@ function getStatusDescription(
   }
 }
 
+function getCardDescription(proposalType: ProposalType): string {
+  switch (proposalType) {
+    case "upgrade":
+      return "This proposal upgrades canister code and requires verification.";
+    case "install":
+      return "This proposal installs a new canister and requires verification.";
+    case "other":
+      return "This proposal does not involve code changes.";
+  }
+}
+
 export function BuildVerificationWidget({
-  isUpgradeProposal,
+  proposalType,
   verificationRun,
   proposalId,
 }: BuildVerificationWidgetProps) {
-  const status = getVerificationStatus(isUpgradeProposal, verificationRun);
+  const isVerifiable = isVerifiableProposal(proposalType);
+  const status = getVerificationStatus(isVerifiable, verificationRun);
   const statusText = getStatusText(status);
   const description = getStatusDescription(status, verificationRun);
 
@@ -141,11 +154,7 @@ export function BuildVerificationWidget({
           <StatusIndicator status={status} />
           Build Verification
         </CardTitle>
-        <CardDescription>
-          {isUpgradeProposal
-            ? "This proposal upgrades canister code and requires verification."
-            : "This proposal does not involve code changes."}
-        </CardDescription>
+        <CardDescription>{getCardDescription(proposalType)}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>

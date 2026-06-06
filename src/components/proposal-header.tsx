@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { ActionRun } from "@/lib/github";
+import { type ProposalType, isVerifiableProposal } from "@/lib/proposal-types";
 import { DiffStats } from "@/components/diff-stats";
 
 interface ForumThread {
@@ -24,7 +25,7 @@ interface ProposalHeaderProps {
   expectedWasmHash?: string | null;
   forumCategoryUrl: string;
   verificationRun: ActionRun | null;
-  isUpgradeProposal: boolean;
+  proposalType: ProposalType;
   linesAdded?: number | null;
   linesRemoved?: number | null;
 }
@@ -46,10 +47,10 @@ type VerificationStatus =
   | "not_expected";
 
 function getVerificationStatus(
-  isUpgradeProposal: boolean,
+  isVerifiable: boolean,
   verificationRun: ActionRun | null
 ): VerificationStatus {
-  if (!isUpgradeProposal) {
+  if (!isVerifiable) {
     return "not_expected";
   }
   if (!verificationRun) {
@@ -106,10 +107,11 @@ export function ProposalHeader({
   expectedWasmHash,
   forumCategoryUrl,
   verificationRun,
-  isUpgradeProposal,
+  proposalType,
   linesAdded,
   linesRemoved,
 }: ProposalHeaderProps) {
+  const isVerifiable = isVerifiableProposal(proposalType);
   const {
     data: threads = [],
     isLoading: threadsLoading,
@@ -120,7 +122,7 @@ export function ProposalHeader({
   });
 
   const verificationStatus = getVerificationStatus(
-    isUpgradeProposal,
+    isVerifiable,
     verificationRun
   );
   const statusText = getStatusText(verificationStatus);
@@ -199,8 +201,8 @@ export function ProposalHeader({
           )}
         </div>
 
-        {/* Technical Details - Only for upgrade proposals */}
-        {isUpgradeProposal && (canisterId || commitHash || expectedWasmHash) && (
+        {/* Technical Details - Only for verifiable (upgrade/install) proposals */}
+        {isVerifiable && (canisterId || commitHash || expectedWasmHash) && (
           <div className="pt-3 border-t">
             <p className="text-sm font-medium mb-2">Technical Details</p>
             <div className="grid gap-3 md:grid-cols-2 text-sm">

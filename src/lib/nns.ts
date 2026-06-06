@@ -1,8 +1,19 @@
 import { HttpAgent, Actor } from "@dfinity/agent";
 import { Principal } from "@dfinity/principal";
 import { IDL } from "@dfinity/candid";
+import { type ProposalType, isVerifiableProposal } from "./proposal-types";
+
+// Re-exported so server-side callers can pull classification helpers from the
+// same module as getProposal.
+export { type ProposalType, isVerifiableProposal };
 
 const GOVERNANCE_CANISTER_ID = "rrkah-fqaaa-aaaaa-aaaaq-cai";
+
+// NnsFunction enum values from the IC governance proto, used by the legacy
+// ExecuteNnsFunction action. Source: dfinity/ic
+// rs/nns/governance/proto/ic_nns_governance/pb/v1/governance.proto
+const NNS_FUNCTION_NNS_CANISTER_INSTALL = 3;
+const NNS_FUNCTION_NNS_CANISTER_UPGRADE = 4;
 
 // NNS Proposal Topics
 // Reference: https://internetcomputer.org/docs/current/developer-docs/daos/nns/overview
@@ -75,6 +86,7 @@ export interface ProposalDetail {
   commitHash: string | null;
   expectedWasmHash: string | null;
   canisterId: string | null;
+  proposalType: ProposalType;
   proposalTimestampSeconds: bigint;
 }
 
@@ -141,6 +153,13 @@ const getProposalIdlFactory = () => {
     settings: IDL.Opt(IDL.Record({})),
   });
 
+  // Legacy action. We only need nns_function to classify the proposal; the
+  // payload blob (which for NnsCanisterInstall carries the full wasm module) is
+  // intentionally omitted so candid skips it instead of decoding megabytes.
+  const ExecuteNnsFunction = IDL.Record({
+    nns_function: IDL.Int32,
+  });
+
   const ProposalInfo = IDL.Record({
     id: IDL.Opt(IDL.Record({ id: IDL.Nat64 })),
     proposer: IDL.Opt(IDL.Record({ id: IDL.Nat64 })),
@@ -153,6 +172,7 @@ const getProposalIdlFactory = () => {
           IDL.Variant({
             InstallCode: InstallCode,
             UpdateCanisterSettings: UpdateCanisterSettings,
+            ExecuteNnsFunction: ExecuteNnsFunction,
           })
         ),
       })
@@ -261,6 +281,9 @@ export async function getProposal(
               wasm_module_hash?: [number[]];
               canister_id?: [Principal];
             };
+            ExecuteNnsFunction?: {
+              nns_function: number;
+            };
           }
         ];
       }
@@ -278,15 +301,27 @@ export async function getProposal(
 
   let expectedWasmHash: string | null = null;
   let canisterId: string | null = null;
+  let proposalType: ProposalType = "other";
 
   const action = proposal.action?.[0];
   if (action?.InstallCode) {
+    // Modern action: carries the wasm hash and target canister directly.
+    proposalType = "upgrade";
     const installCode = action.InstallCode;
     if (installCode.wasm_module_hash?.[0]) {
       expectedWasmHash = bytesToHex(installCode.wasm_module_hash[0]);
     }
     if (installCode.canister_id?.[0]) {
       canisterId = installCode.canister_id[0].toText();
+    }
+  } else if (action?.ExecuteNnsFunction) {
+    // Legacy action: classify by function id only. The wasm hash is not in this
+    // envelope; gh-verifier derives it from the reproduced build.
+    const fn = action.ExecuteNnsFunction.nns_function;
+    if (fn === NNS_FUNCTION_NNS_CANISTER_INSTALL) {
+      proposalType = "install";
+    } else if (fn === NNS_FUNCTION_NNS_CANISTER_UPGRADE) {
+      proposalType = "upgrade";
     }
   }
 
@@ -303,6 +338,7 @@ export async function getProposal(
     commitHash,
     expectedWasmHash,
     canisterId,
+    proposalType,
     proposalTimestampSeconds: proposalInfo.executed_timestamp_seconds,
   };
 }

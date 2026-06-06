@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Receiver } from "@upstash/qstash";
 import { getRecentProposals, markVerificationTriggered } from "@/lib/db";
-import { getProposal, MIN_PROPOSAL_ID } from "@/lib/nns";
+import { getProposal, isVerifiableProposal, MIN_PROPOSAL_ID } from "@/lib/nns";
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const REPO_OWNER = "jorgenbuilder";
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Check if this proposal is an upgrade proposal (needs verification)
+      // Only proposals that ship canister code (upgrade/install) need verification.
       const proposalDetail = await getProposal(proposalIdBigInt);
 
       if (!proposalDetail) {
@@ -131,11 +131,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const isUpgradeProposal = !!(
-        proposalDetail.expectedWasmHash || proposalDetail.canisterId
-      );
-
-      if (!isUpgradeProposal) {
+      if (!isVerifiableProposal(proposalDetail.proposalType)) {
         skippedProposals.push(proposal.proposal_id);
         continue;
       }
