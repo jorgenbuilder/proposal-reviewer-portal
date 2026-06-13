@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   useReactTable,
@@ -38,8 +38,7 @@ import {
 } from "@/components/ui/table";
 import type { VerificationStatus } from "@/lib/github";
 import { TOPIC_NAMES } from "@/lib/nns";
-import { NotificationPreferences } from "@/components/notification-preferences";
-import { registerServiceWorker } from "@/lib/push";
+import { SettingsMenu } from "@/components/settings-menu";
 import { DiffStatsBar } from "@/components/diff-stats";
 
 interface Proposal {
@@ -134,80 +133,8 @@ export function ProposalDataTable() {
     refetchInterval: 60 * 1000,
   });
 
-  const [testingNotification, setTestingNotification] = useState(false);
-  const [testingFailure, setTestingFailure] = useState(false);
-  const [testResult, setTestResult] = useState<{
-    type: "success" | "error" | "info";
-    message: string;
-  } | null>(null);
-
   const [sorting, setSorting] = useState<SortingState>([]);
   const [topicFilter, setTopicFilter] = useState<string>("all");
-  const [subscriptionEndpoint, setSubscriptionEndpoint] = useState<string | null>(null);
-  const [showPreferences, setShowPreferences] = useState(false);
-
-  // Check for existing subscription
-  useEffect(() => {
-    async function checkSubscription() {
-      try {
-        const registration = await registerServiceWorker();
-        if (registration) {
-          const subscription = await registration.pushManager.getSubscription();
-          if (subscription) {
-            setSubscriptionEndpoint(subscription.endpoint);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to check subscription:", error);
-      }
-    }
-    checkSubscription();
-  }, []);
-
-  const handleTestNotification = async (simulateFailure: boolean) => {
-    if (simulateFailure) {
-      setTestingFailure(true);
-    } else {
-      setTestingNotification(true);
-    }
-    setTestResult(null);
-
-    try {
-      const response = await fetch("/api/test-notification", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ simulateFailure }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setTestResult({
-          type: "success",
-          message: data.message,
-        });
-      } else if (response.status === 404) {
-        setTestResult({
-          type: "error",
-          message: "No subscriptions found. Please enable notifications first.",
-        });
-      } else {
-        setTestResult({
-          type: "error",
-          message: data.message || "Failed to send notification",
-        });
-      }
-    } catch (err) {
-      console.error("Test notification error:", err);
-      setTestResult({
-        type: "error",
-        message: "An unexpected error occurred",
-      });
-    } finally {
-      setTestingNotification(false);
-      setTestingFailure(false);
-    }
-  };
 
   // Get unique topics from proposals
   const uniqueTopics = useMemo(() => {
@@ -410,69 +337,11 @@ export function ProposalDataTable() {
               Network Nervous System Proposals
             </p>
           </div>
+          <SettingsMenu />
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-6 space-y-6">
-        {/* Test Notification Buttons */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">Notifications</CardTitle>
-                <CardDescription>
-                  Test your notification setup and manage preferences
-                </CardDescription>
-              </div>
-              {subscriptionEndpoint && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowPreferences(!showPreferences)}
-                >
-                  {showPreferences ? "Hide" : "Preferences"}
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                onClick={() => handleTestNotification(false)}
-                disabled={testingNotification || testingFailure}
-              >
-                {testingNotification ? "Sending..." : "Test Notification"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleTestNotification(true)}
-                disabled={testingNotification || testingFailure}
-              >
-                {testingFailure ? "Simulating..." : "Test Failure"}
-              </Button>
-            </div>
-            {testResult && (
-              <p
-                className={`text-sm ${
-                  testResult.type === "success"
-                    ? "text-green-600 dark:text-green-400"
-                    : testResult.type === "error"
-                    ? "text-destructive"
-                    : "text-muted-foreground"
-                }`}
-              >
-                {testResult.message}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Notification Preferences */}
-        {showPreferences && subscriptionEndpoint && (
-          <NotificationPreferences endpoint={subscriptionEndpoint} />
-        )}
-
         {/* Topic Filter and Last Updated */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
