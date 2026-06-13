@@ -148,7 +148,7 @@ function CollapsibleHeader({
   trailing?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-stretch">
+    <div className="sticky top-[37px] z-10 flex items-stretch bg-background">
       <button
         type="button"
         onClick={onToggle}
