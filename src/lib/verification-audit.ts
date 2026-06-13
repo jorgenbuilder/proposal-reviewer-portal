@@ -49,16 +49,17 @@ function ghHeaders(): Record<string, string> {
 
 // Download + parse the verification-result.json artifact for a run.
 async function fetchVerifierResult(runId: number): Promise<VerifierResult | null> {
+  // no-store: never serve a stale (e.g. empty, pre-upload) artifact list from Next's fetch cache.
   const listRes = await fetch(
     `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs/${runId}/artifacts`,
-    { headers: ghHeaders() }
+    { headers: ghHeaders(), cache: "no-store" }
   );
   if (!listRes.ok) return null;
   const list = await listRes.json();
   const art = (list.artifacts || []).find((a: { name: string }) => a.name === "verification-result");
   if (!art) return null;
   // archive_download_url 302-redirects to a signed blob; fetch follows by default.
-  const zipRes = await fetch(art.archive_download_url, { headers: ghHeaders() });
+  const zipRes = await fetch(art.archive_download_url, { headers: ghHeaders(), cache: "no-store" });
   if (!zipRes.ok) return null;
   const buf = new Uint8Array(await zipRes.arrayBuffer());
   const files = unzipSync(buf);
