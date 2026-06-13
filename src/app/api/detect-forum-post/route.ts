@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Receiver } from "@upstash/qstash";
 import { addForumThread, hasCanonicalForumThread } from "@/lib/db";
 import { findCanonicalThread, ForumAuthError } from "@/lib/forum";
-import { scheduleDetection } from "@/lib/forum-detect";
+import { scheduleDetection, enqueueReviewCheck } from "@/lib/forum-detect";
 import { sendForumCredentialAlertEmail } from "@/lib/email";
 
 async function verifyQStashSignature(signature: string | null, body: string): Promise<boolean> {
@@ -57,6 +57,8 @@ export async function POST(request: NextRequest) {
     if (thread) {
       await addForumThread(proposalId, thread.url, thread.title, true);
       log("found + saved canonical:", thread.url);
+      // Opportunistic low-latency kick; the checker self-gates on verification + idempotency.
+      await enqueueReviewCheck(proposalId).catch((e) => log("review enqueue warn:", (e as Error).message));
       return NextResponse.json({ status: "found", url: thread.url });
     }
     const more = await scheduleDetection(proposalId, attempt + 1);

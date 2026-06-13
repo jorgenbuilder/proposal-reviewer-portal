@@ -61,6 +61,10 @@ export type Database = {
           lines_added: number | null
           lines_removed: number | null
           verification_triggered_at: string | null
+          review_post_state: string | null
+          review_post_url: string | null
+          review_flagged_reason: string | null
+          review_posted_at: string | null
         }
         Insert: {
           proposal_id: number
@@ -77,6 +81,10 @@ export type Database = {
           lines_added?: number | null
           lines_removed?: number | null
           verification_triggered_at?: string | null
+          review_post_state?: string | null
+          review_post_url?: string | null
+          review_flagged_reason?: string | null
+          review_posted_at?: string | null
         }
         Update: {
           proposal_id?: number
@@ -93,6 +101,10 @@ export type Database = {
           lines_added?: number | null
           lines_removed?: number | null
           verification_triggered_at?: string | null
+          review_post_state?: string | null
+          review_post_url?: string | null
+          review_flagged_reason?: string | null
+          review_posted_at?: string | null
         }
         Relationships: []
       }

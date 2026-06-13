@@ -47,6 +47,43 @@ STORE_OP=1 FORUM_USER='…' FORUM_PASS='…' node scripts/mint-userapikey.mjs</p
   }
 }
 
+/**
+ * Alert the operator when an automated verification audit flags a proposal as NOT safely
+ * verified — so it is NOT auto-posted. Should be rare (wasm mismatch, blank output, etc.).
+ */
+export async function sendVerificationFlagEmail(
+  proposalId: string,
+  reasons: string[],
+  runUrl: string | null
+): Promise<boolean> {
+  const to = process.env.ALERT_EMAIL || "jorgen@buildnode.io";
+  try {
+    const { error } = await resend.emails.send({
+      from: "ICP Proposals <notifications@icp-proposals.app>",
+      to,
+      subject: `⚠️ Verification audit flagged proposal #${proposalId} (NOT posted)`,
+      html: `
+        <h2>Verification audit flagged #${proposalId}</h2>
+        <p>The automated checker did <strong>not</strong> post a verification note for this
+        proposal because the build verification could not be independently confirmed.
+        Nothing was posted to the forum.</p>
+        <ul>
+          ${reasons.map((r) => `<li><code>${r}</code></li>`).join("")}
+        </ul>
+        ${runUrl ? `<p>Verification run: <a href="${runUrl}">${runUrl}</a></p>` : ""}
+        <p style="color:#666;font-size:12px;">Review manually. This alert means a discrepancy
+        between the GitHub Actions verification and the on-chain proposal, a blank/missing
+        result, or a failed run.</p>
+      `,
+    });
+    if (error) { console.error("Resend error (verification flag):", error); return false; }
+    return true;
+  } catch (error) {
+    console.error("Verification flag email failed:", error);
+    return false;
+  }
+}
+
 export async function sendProposalNotificationEmail(
   to: string,
   proposal: ProposalEmailData

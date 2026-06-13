@@ -42,3 +42,14 @@ export async function scheduleDetection(proposalId: string, attempt: number): Pr
   });
   return true;
 }
+
+// Enqueue the verification-note review check for a proposal (idempotent; the checker
+// re-validates all gates and no-ops if not ready). Used opportunistically when a canonical
+// thread lands, and by the scheduled reconciler.
+export async function enqueueReviewCheck(proposalId: string, delaySeconds = 0): Promise<void> {
+  await client().publishJSON({
+    url: `${appUrl()}/api/review-verified-proposal`,
+    body: { proposalId },
+    delay: delaySeconds,
+  });
+}

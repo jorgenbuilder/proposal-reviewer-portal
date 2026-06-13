@@ -85,6 +85,8 @@ export interface ProposalDetail {
   url: string;
   commitHash: string | null;
   expectedWasmHash: string | null;
+  expectedArgHash: string | null;
+  installMode: number | null;
   canisterId: string | null;
   proposalType: ProposalType;
   proposalTimestampSeconds: bigint;
@@ -279,6 +281,8 @@ export async function getProposal(
           {
             InstallCode?: {
               wasm_module_hash?: [number[]];
+              arg_hash?: [number[]];
+              install_mode?: [number];
               canister_id?: [Principal];
             };
             ExecuteNnsFunction?: {
@@ -300,6 +304,8 @@ export async function getProposal(
   const url = proposal.url || "";
 
   let expectedWasmHash: string | null = null;
+  let expectedArgHash: string | null = null;
+  let installMode: number | null = null;
   let canisterId: string | null = null;
   let proposalType: ProposalType = "other";
 
@@ -310,6 +316,12 @@ export async function getProposal(
     const installCode = action.InstallCode;
     if (installCode.wasm_module_hash?.[0]) {
       expectedWasmHash = bytesToHex(installCode.wasm_module_hash[0]);
+    }
+    if (installCode.arg_hash?.[0]) {
+      expectedArgHash = bytesToHex(installCode.arg_hash[0]);
+    }
+    if (installCode.install_mode?.[0] != null) {
+      installMode = Number(installCode.install_mode[0]);
     }
     if (installCode.canister_id?.[0]) {
       canisterId = installCode.canister_id[0].toText();
@@ -337,6 +349,8 @@ export async function getProposal(
     url,
     commitHash,
     expectedWasmHash,
+    expectedArgHash,
+    installMode,
     canisterId,
     proposalType,
     proposalTimestampSeconds: proposalInfo.executed_timestamp_seconds,

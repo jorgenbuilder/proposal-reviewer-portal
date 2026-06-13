@@ -216,6 +216,83 @@ export async function getProposalsWithoutCanonicalForum(
   return proposalIds.filter(id => !withCanonical.has(id))
 }
 
+// --- Automated verification-note review state ---
+
+export interface ReviewCandidate {
+  proposalId: string;
+  title: string | null;
+  canonicalForumUrl: string;
+}
+
+// Proposals that have a canonical thread but haven't been handled by the review poster yet.
+export async function getProposalsAwaitingReview(limit = 25): Promise<ReviewCandidate[]> {
+  const { data: pending, error } = await supabase
+    .from('proposals_seen')
+    .select('proposal_id, title')
+    .is('review_post_state', null)
+    .order('seen_at', { ascending: false })
+    .limit(200)
+
+  if (error) throw error
+  const ids = (pending || []).map(p => String(p.proposal_id))
+  if (ids.length === 0) return []
+
+  const { data: threads, error: tErr } = await supabase
+    .from('proposal_forum_threads')
+    .select('proposal_id, forum_url')
+    .eq('is_canonical', true)
+    .in('proposal_id', ids)
+  if (tErr) throw tErr
+
+  const canonicalByProposal = new Map<string, string>()
+  for (const t of threads || []) canonicalByProposal.set(String(t.proposal_id), t.forum_url)
+
+  const out: ReviewCandidate[] = []
+  for (const p of pending || []) {
+    const url = canonicalByProposal.get(String(p.proposal_id))
+    if (url) out.push({ proposalId: String(p.proposal_id), title: p.title, canonicalForumUrl: url })
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+export async function getReviewPostState(
+  proposalId: string
+): Promise<{ state: string | null; canonicalForumUrl: string | null }> {
+  const { data, error } = await supabase
+    .from('proposals_seen')
+    .select('review_post_state')
+    .eq('proposal_id', parseInt(proposalId, 10))
+    .maybeSingle()
+  if (error) throw error
+
+  const { data: thread } = await supabase
+    .from('proposal_forum_threads')
+    .select('forum_url')
+    .eq('proposal_id', proposalId)
+    .eq('is_canonical', true)
+    .limit(1)
+    .maybeSingle()
+
+  return { state: data?.review_post_state ?? null, canonicalForumUrl: thread?.forum_url ?? null }
+}
+
+export async function markReviewPosted(proposalId: string, postUrl: string): Promise<void> {
+  const { error } = await supabase
+    .from('proposals_seen')
+    .update({ review_post_state: 'posted', review_post_url: postUrl, review_posted_at: new Date().toISOString() })
+    .eq('proposal_id', parseInt(proposalId, 10))
+  if (error) throw error
+}
+
+export async function markReviewFlagged(proposalId: string, reason: string): Promise<void> {
+  const { error } = await supabase
+    .from('proposals_seen')
+    .update({ review_post_state: 'flagged', review_flagged_reason: reason.slice(0, 1000) })
+    .eq('proposal_id', parseInt(proposalId, 10))
+  if (error) throw error
+}
+
 export async function hasCanonicalForumThread(
   proposalId: string
 ): Promise<boolean> {
