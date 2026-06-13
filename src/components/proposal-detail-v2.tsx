@@ -558,7 +558,7 @@ export function ProposalDetailV2({ proposal: p }: ProposalDetailV2Props) {
     setOpenCommits((m) => ({ ...m, [hash]: !m[hash] }));
 
   return (
-    <article className="mx-auto w-full max-w-2xl overflow-x-hidden bg-background pb-[75vh] text-foreground">
+    <article className="mx-auto w-full max-w-2xl overflow-x-clip bg-background pb-[75vh] text-foreground">
       {/* 1. Header — fixed to the viewport top; the spacer <header> reserves its
           height in flow. The bar is centred on the same max-w-2xl column as the
           article so it lines up on wide screens and is full-width on mobile. */}
