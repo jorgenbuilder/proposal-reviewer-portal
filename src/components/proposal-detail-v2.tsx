@@ -106,11 +106,17 @@ const mdComponents: Components = {
   li: ({ node, ...props }) => <li className="leading-relaxed pl-1" {...props} />,
   code: ({ node, className, children, ...props }) => (
     <code
-      className="rounded-none border border-border bg-muted px-1 py-0.5 font-mono text-[0.85em]"
+      className="rounded-none border border-border bg-muted px-1 py-0.5 font-mono text-[0.85em] break-words"
       {...props}
     >
       {children}
     </code>
+  ),
+  pre: ({ node, ...props }) => (
+    <pre
+      className="my-2 overflow-x-auto border border-border bg-muted p-2 font-mono text-[0.75rem] leading-snug [&_code]:border-0 [&_code]:bg-transparent [&_code]:p-0"
+      {...props}
+    />
   ),
   h1: ({ node, ...props }) => <h3 className="mt-3 mb-1 text-sm font-semibold" {...props} />,
   h2: ({ node, ...props }) => <h3 className="mt-3 mb-1 text-sm font-semibold" {...props} />,
@@ -503,9 +509,7 @@ export function ProposalDetailV2({ proposal: p }: ProposalDetailV2Props) {
         </CollapsibleHeader>
         {onchainOpen && (
           <div className="px-3 pb-4">
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              {p.onchain.statement}
-            </p>
+            <Markdown className="text-muted-foreground">{p.onchain.statement}</Markdown>
             <p className="mt-2 font-mono text-xs text-muted-foreground">{p.proposer}</p>
             <div className="mt-3">
               <VoteIndicator vote={p.onchain.vote} />

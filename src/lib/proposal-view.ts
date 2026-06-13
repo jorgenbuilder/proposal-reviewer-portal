@@ -110,15 +110,6 @@ export async function buildParsedProposal(id: string): Promise<ParsedProposal | 
   const repo = parse.repo ?? { owner: "", name: "", url: "" };
   const targetCommit = parse.targetCommit || proposal.commitHash || "";
 
-  // The "proposal statement": just the what-it-does prose, never the full template dump
-  // (proposer/source/commits/verification all live in their own UI sections). Prefer the
-  // parsed Features & Fixes / Motivation section; fall back to the non-boilerplate sections;
-  // only as a last resort show the raw summary (proposals that don't match either template).
-  const statement =
-    parse.features ||
-    parse.description.map((d) => d.markdown).join("\n\n") ||
-    proposal.summary;
-
   return {
     proposalId: id,
     title: proposal.title,
@@ -173,7 +164,7 @@ export async function buildParsedProposal(id: string): Promise<ParsedProposal | 
     onchain: {
       canisterName: deriveCanisterName(proposal.title, proposal.canisterId),
       shortCommit: targetCommit.slice(0, 7),
-      statement,
+      statement: proposal.summary,
       dashboardUrl: getDashboardUrl(id),
       vote: vote ?? { status: "open", yes: 0, no: 0, threshold: 0.5 },
     },
