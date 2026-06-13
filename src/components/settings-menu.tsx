@@ -149,6 +149,30 @@ export function SettingsMenu() {
     }
   };
 
+  const handleDisable = async () => {
+    setEnabling(true);
+    setTestResult(null);
+    try {
+      const reg = (await navigator.serviceWorker?.getRegistration()) || (await registerServiceWorker());
+      const sub = reg ? await reg.pushManager.getSubscription() : null;
+      if (sub) {
+        // Remove from the server first, then unsubscribe locally.
+        await fetch("/api/subscribe", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        }).catch(() => {});
+        await sub.unsubscribe().catch(() => {});
+      }
+      setTestResult({ type: "success", message: "Notifications turned off on this device." });
+    } catch (e) {
+      setTestResult({ type: "error", message: (e as Error).message });
+    } finally {
+      setEnabling(false);
+      refresh();
+    }
+  };
+
   const copyDiagnostics = async () => {
     if (!diag) return;
     await navigator.clipboard.writeText(JSON.stringify(diag, null, 2)).catch(() => {});
@@ -210,23 +234,35 @@ export function SettingsMenu() {
                 )}
               </section>
 
-              {/* Test / enable */}
+              {/* On/off + test */}
               <section>
-                <h3 className="mb-2 text-sm font-semibold">Notifications</h3>
-                {diag && !diag.subscribed ? (
-                  <Button onClick={handleEnable} disabled={enabling}>
-                    {enabling ? "Enabling…" : "Enable on this device"}
-                  </Button>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" onClick={() => handleTest(false)} disabled={!!testing}>
-                      {testing === "real" ? "Sending…" : "Test notification"}
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">Notifications</h3>
+                  <span className={`text-xs font-medium ${diag?.subscribed ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}>
+                    {diag?.subscribed ? "On (this device)" : "Off (this device)"}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {diag?.subscribed ? (
+                    <Button variant="outline" onClick={handleDisable} disabled={enabling || !!testing}>
+                      {enabling ? "Turning off…" : "Turn off"}
                     </Button>
-                    <Button variant="outline" onClick={() => handleTest(true)} disabled={!!testing}>
-                      {testing === "fail" ? "Simulating…" : "Test email fallback"}
+                  ) : (
+                    <Button onClick={handleEnable} disabled={enabling || !!testing}>
+                      {enabling ? "Turning on…" : "Turn on"}
                     </Button>
-                  </div>
-                )}
+                  )}
+                  {diag?.subscribed && (
+                    <>
+                      <Button variant="outline" onClick={() => handleTest(false)} disabled={!!testing || enabling}>
+                        {testing === "real" ? "Sending…" : "Test notification"}
+                      </Button>
+                      <Button variant="outline" onClick={() => handleTest(true)} disabled={!!testing || enabling}>
+                        {testing === "fail" ? "Simulating…" : "Test email fallback"}
+                      </Button>
+                    </>
+                  )}
+                </div>
                 {testResult && (
                   <p
                     className={`mt-2 text-sm ${
