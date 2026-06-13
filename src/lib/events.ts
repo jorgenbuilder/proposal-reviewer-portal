@@ -6,16 +6,15 @@
 import { logProposalEvent, hasProposalEvent, getSubscriptions } from "./db";
 import { sendPushNotification, PushPayload } from "./web-push-server";
 
-const OPERATOR_EMAIL = (process.env.OPERATOR_EMAIL || "jorgen@buildnode.io").toLowerCase();
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://proposal-reviewer-portal.vercel.app";
 
-// Push to the operator's subscriptions only. Best-effort, never throws.
+// Push pipeline/ops events to every push subscription (single-operator app — no email gate).
+// Best-effort, never throws.
 export async function notifyOperator(payload: PushPayload): Promise<void> {
   try {
     const subs = await getSubscriptions();
-    const targets = subs.filter((s) => s.email && s.email.toLowerCase() === OPERATOR_EMAIL);
     await Promise.all(
-      targets.map((s) =>
+      subs.map((s) =>
         sendPushNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload).catch(() => false)
       )
     );
