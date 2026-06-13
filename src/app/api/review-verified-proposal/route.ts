@@ -44,8 +44,11 @@ export async function POST(request: NextRequest) {
   if (!ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   let proposalId: string;
+  let force = false;
   try {
-    proposalId = String(JSON.parse(body || "{}").proposalId);
+    const parsed = JSON.parse(body || "{}");
+    proposalId = String(parsed.proposalId);
+    force = parsed.force === true; // manual single-proposal override (bypasses the date cutoff only)
     if (!proposalId || proposalId === "undefined") throw new Error("missing proposalId");
   } catch (e) {
     return NextResponse.json({ error: "bad body: " + (e as Error).message }, { status: 400 });
@@ -57,10 +60,13 @@ export async function POST(request: NextRequest) {
     const { state, canonicalForumUrl, proposalTimestamp } = await getReviewPostState(proposalId);
     if (state) { log("already", state); return NextResponse.json({ status: state }); }
     // Invariant: never act on proposals dated before the cutoff (no backlog).
-    if (!proposalTimestamp || new Date(proposalTimestamp) < new Date(REVIEW_MIN_PROPOSAL_DATE)) {
+    // `force` (manual, single proposal) bypasses ONLY this date gate — all other gates
+    // (idempotency, verification-green, audit) still apply.
+    if (!force && (!proposalTimestamp || new Date(proposalTimestamp) < new Date(REVIEW_MIN_PROPOSAL_DATE))) {
       log("before cutoff or no timestamp; skipping", proposalTimestamp);
       return NextResponse.json({ status: "before-cutoff" });
     }
+    if (force) log("FORCE: bypassing date cutoff");
     if (!canonicalForumUrl) {
       // Verify-first ordering (e.g. the gh-verifier callback fired before the forum thread
       // exists). If verified, switch canonical detection into tight mode so we catch the post
