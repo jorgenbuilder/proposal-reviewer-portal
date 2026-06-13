@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RotateCw, Github, Check, Clock, Settings, MessageSquare } from "lucide-react";
+import { RotateCw, Github, Check, Clock, MessageSquare } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -116,12 +116,6 @@ export function ProposalList() {
               Protocol Canister Management Proposals
             </p>
           </div>
-          <Button variant="ghost" size="sm" asChild>
-            <a href="/admin/cookies" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              <span className="hidden sm:inline">Forum Cookies</span>
-            </a>
-          </Button>
         </div>
       </header>
 

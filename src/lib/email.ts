@@ -10,6 +10,43 @@ export interface ProposalEmailData {
   appUrl: string;
 }
 
+/**
+ * Alert the operator when the forum access credential (User-API-Key) appears to be
+ * revoked or invalid, so detection can be re-minted. Sent to ALERT_EMAIL (default the
+ * project owner).
+ */
+export async function sendForumCredentialAlertEmail(detail: string): Promise<boolean> {
+  const to = process.env.ALERT_EMAIL || "jorgen@buildnode.io";
+  try {
+    const { error } = await resend.emails.send({
+      from: "ICP Proposals <notifications@icp-proposals.app>",
+      to,
+      subject: "⚠️ Forum access credential failed (forum-post detection)",
+      html: `
+        <h2>Forum access credential issue</h2>
+        <p>The portal's forum User-API-Key was rejected, so canonical forum-post
+        detection is paused for the affected proposal(s).</p>
+        <div style="background:#fff3f3;padding:16px;border-radius:8px;margin:16px 0;border:1px solid #f3c0c0;">
+          <code style="color:#a00;">${detail}</code>
+        </div>
+        <p><strong>Fix:</strong> re-mint the key and update <code>FORUM_USER_API_KEY</code>:</p>
+        <pre style="background:#f5f5f5;padding:12px;border-radius:6px;">cd ii-automation
+STORE_OP=1 FORUM_USER='…' FORUM_PASS='…' node scripts/mint-userapikey.mjs</pre>
+        <p style="color:#666;font-size:12px;">Then redeploy / update the Vercel env var.
+        Detection auto-resumes on the next proposal once the key is valid.</p>
+      `,
+    });
+    if (error) {
+      console.error("Resend error (forum credential alert):", error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Forum credential alert email failed:", error);
+    return false;
+  }
+}
+
 export async function sendProposalNotificationEmail(
   to: string,
   proposal: ProposalEmailData

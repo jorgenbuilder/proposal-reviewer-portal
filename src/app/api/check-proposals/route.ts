@@ -20,6 +20,7 @@ import {
 import { sendPushNotification } from "@/lib/web-push-server";
 import { sendProposalNotificationEmail } from "@/lib/email";
 import { getCommitDiffStats, getCommitDiffStatsByHash, parseGitHubUrl, getDiffStatsFromCommits } from "@/lib/github";
+import { scheduleDetection } from "@/lib/forum-detect";
 
 // Verify cron secret or QStash signature
 function verifyAuth(request: Request): boolean {
@@ -127,6 +128,14 @@ export async function POST(request: Request) {
         proposal.url || null,
         proposalTimestamp
       );
+
+      // Spawn canonical-forum-post detection (self-rescheduling QStash task with backoff).
+      // Best-effort: never let a scheduling hiccup break proposal processing.
+      try {
+        await scheduleDetection(proposalIdStr, 0);
+      } catch (error) {
+        console.error(`[check-proposals] Failed to schedule forum detection for #${proposalIdStr}:`, error);
+      }
 
       // Fetch and store diff stats from GitHub (async, don't block notifications)
       const proposalText = `${proposal.title}\n${proposal.summary}\n${proposal.url}`;

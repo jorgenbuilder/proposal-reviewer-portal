@@ -12,7 +12,7 @@ import {
   type SortingState,
   type ColumnDef,
 } from "@tanstack/react-table";
-import { RotateCw, Github, Check, Clock, Settings, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { RotateCw, Github, Check, Clock, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -410,12 +410,6 @@ export function ProposalDataTable() {
               Network Nervous System Proposals
             </p>
           </div>
-          <Button variant="ghost" size="sm" asChild>
-            <a href="/admin/cookies" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              <span className="hidden sm:inline">Forum Cookies</span>
-            </a>
-          </Button>
         </div>
       </header>
 
