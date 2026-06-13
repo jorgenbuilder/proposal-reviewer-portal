@@ -48,27 +48,42 @@ function ghHeaders(): Record<string, string> {
 }
 
 // Download + parse the verification-result.json artifact for a run.
-async function fetchVerifierResult(runId: number): Promise<VerifierResult | null> {
+// Returns { result, debug } — debug pinpoints where it failed (surfaced in audit reasons).
+async function fetchVerifierResult(runId: number): Promise<{ result: VerifierResult | null; debug: string }> {
   // no-store: never serve a stale (e.g. empty, pre-upload) artifact list from Next's fetch cache.
   const listRes = await fetch(
     `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs/${runId}/artifacts`,
     { headers: ghHeaders(), cache: "no-store" }
   );
-  if (!listRes.ok) return null;
+  if (!listRes.ok) return { result: null, debug: `list HTTP ${listRes.status}` };
   const list = await listRes.json();
   const art = (list.artifacts || []).find((a: { name: string }) => a.name === "verification-result");
-  if (!art) return null;
-  // archive_download_url 302-redirects to a signed blob; fetch follows by default.
-  const zipRes = await fetch(art.archive_download_url, { headers: ghHeaders(), cache: "no-store" });
-  if (!zipRes.ok) return null;
-  const buf = new Uint8Array(await zipRes.arrayBuffer());
-  const files = unzipSync(buf);
-  const entry = files["verification-result.json"];
-  if (!entry) return null;
+  if (!art) return { result: null, debug: `no artifact (have: ${(list.artifacts || []).map((a: { name: string }) => a.name).join(",") || "none"})` };
+
+  // The archive_download_url 302-redirects to a signed blob. Follow it MANUALLY and fetch the
+  // blob WITHOUT the Authorization header — some runtimes keep it on the cross-origin redirect,
+  // and the blob store rejects an auth header it didn't sign for (→ 401/403).
+  let buf: Uint8Array;
+  const dl = await fetch(art.archive_download_url, { headers: ghHeaders(), cache: "no-store", redirect: "manual" });
+  if (dl.status >= 300 && dl.status < 400) {
+    const loc = dl.headers.get("location");
+    if (!loc) return { result: null, debug: `redirect ${dl.status} without location` };
+    const blob = await fetch(loc, { cache: "no-store" }); // no auth header on the signed blob URL
+    if (!blob.ok) return { result: null, debug: `blob HTTP ${blob.status}` };
+    buf = new Uint8Array(await blob.arrayBuffer());
+  } else if (dl.ok) {
+    buf = new Uint8Array(await dl.arrayBuffer());
+  } else {
+    return { result: null, debug: `download HTTP ${dl.status}` };
+  }
+
   try {
-    return JSON.parse(strFromU8(entry));
-  } catch {
-    return null;
+    const files = unzipSync(buf);
+    const entry = files["verification-result.json"];
+    if (!entry) return { result: null, debug: `zip has no verification-result.json (have: ${Object.keys(files).join(",")})` };
+    return { result: JSON.parse(strFromU8(entry)), debug: "ok" };
+  } catch (e) {
+    return { result: null, debug: `unzip/parse failed: ${(e as Error).message}` };
   }
 }
 
@@ -96,8 +111,8 @@ export async function auditProposalVerification(proposalId: string): Promise<Aud
   if (run.status !== "completed") { inc.push(`run not completed (status=${run.status})`); return done(false, runUrl, null, null, null); }
   if (run.conclusion !== "success") { inc.push(`run conclusion is "${run.conclusion}", not success`); return done(false, runUrl, null, null, null); }
 
-  const verifier = await fetchVerifierResult(run.id);
-  if (!verifier) { inc.push("verification-result artifact missing/unreadable (run predates the artifact, or not yet available)"); }
+  const { result: verifier, debug } = await fetchVerifierResult(run.id);
+  if (!verifier) { inc.push(`verification-result artifact unreadable [${debug}]`); }
 
   const chainDetail = await getProposal(BigInt(proposalId));
   if (!chainDetail) { inc.push("could not read proposal from chain"); return done(false, runUrl, null, verifier, null); }
