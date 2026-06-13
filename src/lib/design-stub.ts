@@ -21,9 +21,31 @@ export interface ParsedProposal {
   repo: { owner: string; name: string; url: string };
   /** Canonical DFINITY forum post for the proposal (header link target). */
   forumPostUrl?: string | null;
+  /**
+   * Lifecycle of our forum review post, surfaced on the header forum button:
+   * - "none":       no DFINITY forum post discovered for this proposal yet.
+   * - "discovered": the official forum post exists; `url` points at it.
+   * - "draft":      we've posted, but only the initial automated verification
+   *                 header (provisional — final analysis not yet written).
+   * - "final":      our complete review has been posted.
+   * `url` is the link target for every state except "none".
+   */
+  forum: {
+    state: "none" | "discovered" | "draft" | "final";
+    url?: string | null;
+  };
   targetCommit: string;
   previousCommit?: string;
-  commits: { hash: string; subject: string; url: string; verified: boolean }[];
+  commits: {
+    hash: string;
+    subject: string;
+    url: string;
+    verified: boolean;
+    /** Per-commit AI review/summary (markdown), shown in a collapsible row. */
+    review?: string;
+    added?: number;
+    removed?: number;
+  }[];
   canisterId?: string;
   installMode?: string;
   wasmHash?: string;
@@ -41,7 +63,65 @@ export interface ParsedProposal {
   };
   diff?: { added: number; removed: number };
   reviewPostUrl?: string | null;
-  commentary?: { summary: string } | null;
+  /**
+   * AI commentary, mirroring the content the live CommentaryWidget shows
+   * (overall summary, why-now, sources, confidence, incompleteness), just in a
+   * tight collapsible layout. Per-commit summaries live on `commits[].review`.
+   */
+  commentary?: {
+    title: string;
+    overallSummary: string;
+    whyNow?: string;
+    sources?: { label: string; url?: string }[];
+    confidenceNotes?: string;
+    analysisIncomplete?: boolean;
+    incompleteReason?: string;
+    costUsd?: number;
+    durationMs?: number;
+    turns?: number;
+    generatedAt?: string;
+  } | null;
+  /**
+   * Chronological log of automated + human review activity (verification runs,
+   * self-healing attempts, commentary generation, forum posts). Newest first.
+   */
+  reviewActivity?: {
+    at: string;
+    kind: "verification" | "healing" | "commentary" | "forum" | "review";
+    message: string;
+    url?: string;
+    /** Optional metadata (e.g. AI commentary cost / turns / duration). */
+    meta?: { costUsd?: number; turns?: number; durationMs?: number };
+  }[];
+  /**
+   * The raw on-chain proposal as recorded by the NNS, distinct from the
+   * proposer's forum write-up. Surfaced near the top so a reviewer sees what
+   * was actually submitted to governance.
+   */
+  onchain: {
+    /** Human-readable canister name for the action title, e.g. "Registry". */
+    canisterName: string;
+    /** Short target commit (e.g. "f2f22") shown in the action title. */
+    shortCommit: string;
+    /** Verbatim proposal statement extracted from the on-chain body. */
+    statement: string;
+    /** Link to this proposal on the ICP dashboard. */
+    dashboardUrl: string;
+    /** Current governance tally / vote state. */
+    vote: {
+      /** Live disposition based on current voting power. */
+      status: "adopt" | "reject" | "open";
+      /** Yes / no voting power as a fraction of total (0..1). */
+      yes: number;
+      no: number;
+      /**
+       * Adoption threshold as a fraction of total voting power (0..1), as shown
+       * on the ICP dashboard. Yes power must cross this line for the proposal to
+       * be adopted (the immediate / standard majority marker).
+       */
+      threshold: number;
+    };
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -75,6 +155,10 @@ const upgrade: ParsedProposal = {
   ],
   repo: { owner: "dfinity", name: "ic", url: "https://github.com/dfinity/ic" },
   forumPostUrl: "https://forum.dfinity.org/t/nns-updates-2026-06-12/52001",
+  forum: {
+    state: "final",
+    url: "https://forum.dfinity.org/t/nns-updates-2026-06-12/52001/8",
+  },
   targetCommit: "8facd5635c5e05de9b423b64aeabc2e1ad58d66e",
   previousCommit: "a0f359b3cb39ec8f3f3f576345ba23cb9133e763",
   commits: [
@@ -84,6 +168,10 @@ const upgrade: ParsedProposal = {
         "feat: allow engine-controller canister to update cloud engines directly (#10431)",
       url: "https://github.com/dfinity/ic/commit/8facd5635c5e05de9b423b64aeabc2e1ad58d66e",
       verified: true,
+      added: 40,
+      removed: 6,
+      review:
+        "Adds `engine-controller` (`si2b5-...`) to the caller allow-list for `update_subnet` and `deploy_guestos_to_all_subnet_nodes`, gated to subnets whose type is `CloudEngine`. Governance's existing unrestricted path is untouched. The authorization check reads the subnet record's type before dispatching, so a non-CloudEngine subnet call from the engine controller traps. No state migration.",
     },
   ],
   canisterId: "rwlgt-iiaaa-aaaaa-aaaaa-cai",
@@ -98,8 +186,57 @@ const upgrade: ParsedProposal = {
   diff: { added: 40, removed: 6 },
   reviewPostUrl: null,
   commentary: {
-    summary:
-      "Adds an authorization path so the engine-controller can manage CloudEngine subnets without a per-action NNS proposal.",
+    title: "Registry: engine-controller authorization for CloudEngine subnets",
+    overallSummary:
+      "Adds an authorization path so the **engine-controller** canister can manage CloudEngine subnets without a per-action NNS proposal. Scope is tightly bounded: only `update_subnet` and `deploy_guestos_to_all_subnet_nodes`, only for `CloudEngine`-typed subnets, and governance's behaviour is unchanged.",
+    whyNow:
+      "CloudEngine subnet operations were previously gated behind individual NNS proposals, which is too slow for the operational cadence the DRE team needs. This delegates a narrow slice of authority to the engine controller.",
+    sources: [
+      { label: "Proposal body", url: "https://dashboard.internetcomputer.org/proposal/142265" },
+      { label: "PR #10431", url: "https://github.com/dfinity/ic/pull/10431" },
+      { label: "Forum thread", url: "https://forum.dfinity.org/t/nns-updates-2026-06-12/52001" },
+    ],
+    confidenceNotes:
+      "High confidence on the authorization logic; did not independently verify the CloudEngine subnet-type enum is set correctly on the target subnets.",
+    analysisIncomplete: false,
+    costUsd: 0.42,
+    durationMs: 96000,
+    turns: 14,
+    generatedAt: "2026-06-12T14:21:00Z",
+  },
+  reviewActivity: [
+    {
+      at: "2026-06-12T15:02:00Z",
+      kind: "review",
+      message: "Final review posted to the forum.",
+      url: "https://forum.dfinity.org/t/nns-updates-2026-06-12/52001/8",
+    },
+    {
+      at: "2026-06-12T14:25:00Z",
+      kind: "forum",
+      message: "Automated verification header posted to the forum thread.",
+      url: "https://forum.dfinity.org/t/nns-updates-2026-06-12/52001/4",
+    },
+    {
+      at: "2026-06-12T14:21:00Z",
+      kind: "commentary",
+      message: "AI commentary generated.",
+      meta: { costUsd: 0.42, turns: 14, durationMs: 96000 },
+    },
+    {
+      at: "2026-06-12T14:18:00Z",
+      kind: "verification",
+      message: "Build verified — WASM hash matches the proposal.",
+      url: "https://github.com/jorgenbuilder/gh-verifier/actions/runs/27476493036",
+    },
+  ],
+  onchain: {
+    canisterName: "Registry",
+    shortCommit: "8facd56",
+    statement:
+      "Upgrade the Registry canister to commit 8facd5635c5e05de9b423b64aeabc2e1ad58d66e. This change allows the engine-controller canister to call update_subnet and deploy_guestos_to_all_subnet_nodes for CloudEngine subnets, in addition to governance.",
+    dashboardUrl: "https://dashboard.internetcomputer.org/proposal/142265",
+    vote: { status: "adopt", yes: 0.86, no: 0.04, threshold: 0.5 },
   },
 };
 
@@ -134,6 +271,10 @@ const install: ParsedProposal = {
   ],
   repo: { owner: "dfinity", name: "ic", url: "https://github.com/dfinity/ic" },
   forumPostUrl: "https://forum.dfinity.org/t/nns-updates-2026-06-05/51880",
+  forum: {
+    state: "draft",
+    url: "https://forum.dfinity.org/t/nns-updates-2026-06-05/51880/4",
+  },
   targetCommit: "a0f359b3cb39ec8f3f3f576345ba23cb9133e763",
   commits: [
     {
@@ -141,12 +282,20 @@ const install: ParsedProposal = {
       subject: "feat: add engine-controller canister scaffold (#10402)",
       url: "https://github.com/dfinity/ic/commit/a0f359b3cb39ec8f3f3f576345ba23cb9133e763",
       verified: true,
+      added: 540,
+      removed: 0,
+      review:
+        "Introduces the `engine-controller` canister crate: lifecycle endpoints, candid interface, and build wiring. No privileged calls are made on init; the canister is inert until the Registry recognises it as a caller. Worth confirming the init args are empty as claimed.",
     },
     {
       hash: "7c19ab4e02",
       subject: "chore: wire engine-controller into NNS canister registry (#10410)",
       url: "https://github.com/dfinity/ic/commit/7c19ab4e02d4f1a6b8c0e2d4f6a8b0c2e4d6f8a0",
       verified: true,
+      added: 72,
+      removed: 0,
+      review:
+        "Registers the new canister id in the NNS canister manifest and adds it to the deploy tooling. Pure plumbing; sets the controller to NNS root.",
     },
   ],
   canisterId: "si2b5-pyaaa-aaaaa-aaaja-cai",
@@ -162,8 +311,57 @@ const install: ParsedProposal = {
   diff: { added: 612, removed: 0 },
   reviewPostUrl: null,
   commentary: {
-    summary:
-      "New privileged canister installed inert; powers are granted later via a Registry upgrade. Verify the WASM is the minimal scaffold and that controllers are NNS root.",
+    title: "engine-controller: new privileged canister, installed inert",
+    overallSummary:
+      "Installs a **new privileged NNS canister**. On install it has no special powers; authority is granted later via a Registry upgrade (proposal #142265). Verify the WASM is the minimal scaffold and that the sole controller is NNS root.",
+    whyNow:
+      "First half of a two-step rollout: ship the canister inert now, grant it scoped authority in a follow-up so the two changes can be reviewed independently.",
+    sources: [
+      { label: "Proposal body", url: "https://dashboard.internetcomputer.org/proposal/141980" },
+      { label: "PR #10402", url: "https://github.com/dfinity/ic/pull/10402" },
+    ],
+    confidenceNotes:
+      "Build verification was still in a self-healing retry at analysis time; treat the WASM-hash claim as provisional until the run goes green.",
+    analysisIncomplete: true,
+    incompleteReason:
+      "Verification run had not completed when commentary was generated (self-healing iteration 2 in progress).",
+    costUsd: 0.51,
+    durationMs: 132000,
+    turns: 19,
+    generatedAt: "2026-06-05T09:40:00Z",
+  },
+  reviewActivity: [
+    {
+      at: "2026-06-05T09:42:00Z",
+      kind: "forum",
+      message: "Automated verification header posted (provisional).",
+      url: "https://forum.dfinity.org/t/nns-updates-2026-06-05/51880/4",
+    },
+    {
+      at: "2026-06-05T09:40:00Z",
+      kind: "commentary",
+      message: "AI commentary generated (flagged incomplete).",
+      meta: { costUsd: 0.51, turns: 19, durationMs: 132000 },
+    },
+    {
+      at: "2026-06-05T09:35:00Z",
+      kind: "healing",
+      message: "Self-healing iteration 2 started after build failure.",
+      url: "https://github.com/jorgenbuilder/gh-verifier/actions/runs/27460001122",
+    },
+    {
+      at: "2026-06-05T09:28:00Z",
+      kind: "verification",
+      message: "Initial build failed; auto-fix triggered.",
+    },
+  ],
+  onchain: {
+    canisterName: "engine-controller",
+    shortCommit: "a0f359b",
+    statement:
+      "Add a new NNS-controlled canister, engine-controller, at canister id si2b5-pyaaa-aaaaa-aaaja-cai, installed from commit a0f359b3cb39ec8f3f3f576345ba23cb9133e763. The canister is installed inert with the NNS root canister as its sole controller.",
+    dashboardUrl: "https://dashboard.internetcomputer.org/proposal/141980",
+    vote: { status: "open", yes: 0.41, no: 0.12, threshold: 0.5 },
   },
 };
 
@@ -190,6 +388,7 @@ const legacy: ParsedProposal = {
   ],
   repo: { owner: "dfinity", name: "ic", url: "https://github.com/dfinity/ic" },
   forumPostUrl: "https://forum.dfinity.org/t/nns-updates-legacy/12345",
+  forum: { state: "none", url: null },
   targetCommit: "3f1b9d2a",
   commits: [
     {
@@ -208,6 +407,27 @@ const legacy: ParsedProposal = {
   reviewPostUrl:
     "https://forum.dfinity.org/t/nns-updates-legacy/12345/7",
   commentary: null,
+  reviewActivity: [
+    {
+      at: "2024-03-02T11:10:00Z",
+      kind: "review",
+      message: "Manual review posted (build not reproducible).",
+      url: "https://forum.dfinity.org/t/nns-updates-legacy/12345/7",
+    },
+    {
+      at: "2024-03-02T10:55:00Z",
+      kind: "verification",
+      message: "Verification failed: embedded WASM has no source commit to reproduce.",
+    },
+  ],
+  onchain: {
+    canisterName: "SNS-W",
+    shortCommit: "3f1b9d2",
+    statement:
+      "Upgrade the SNS-W canister using a WASM module embedded directly in the proposal payload. No source commit or argument hash was supplied with the on-chain proposal.",
+    dashboardUrl: "https://dashboard.internetcomputer.org/proposal/98213",
+    vote: { status: "reject", yes: 0.18, no: 0.55, threshold: 0.5 },
+  },
 };
 
 export const stubProposals = { upgrade, install, legacy } as const;

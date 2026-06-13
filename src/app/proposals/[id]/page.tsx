@@ -1,13 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ProposalHeader } from "@/components/proposal-header";
 import { ProposalSeenMarker } from "@/components/proposal-seen-marker";
-import { ReviewSubmitWidget } from "@/components/review-submit-widget";
-import { CommentaryWidget } from "@/components/commentary-widget";
-import { getProposal } from "@/lib/nns";
-import { getVerificationRunForProposal, getDashboardUrl, getMultipleCommitStats } from "@/lib/github";
-import { getForumCategoryUrl } from "@/lib/forum";
-import { getLatestCommentary, getProposalDiffStats } from "@/lib/db";
+import { ProposalDetailV2 } from "@/components/proposal-detail-v2";
+import { buildParsedProposal } from "@/lib/proposal-view";
 
 interface ProposalPageProps {
   params: Promise<{ id: string }>;
@@ -15,84 +9,16 @@ interface ProposalPageProps {
 
 export default async function ProposalPage({ params }: ProposalPageProps) {
   const { id } = await params;
-  const proposalId = BigInt(id);
-
-  const [proposal, verificationRun, commentary, diffStats] = await Promise.all([
-    getProposal(proposalId),
-    getVerificationRunForProposal(id),
-    getLatestCommentary(id),
-    getProposalDiffStats(id),
-  ]);
+  const proposal = await buildParsedProposal(id);
 
   if (!proposal) {
     notFound();
   }
 
-  // Enrich commentary commits with diff stats
-  let enrichedCommentary = commentary;
-  if (commentary?.commit_summaries && commentary.commit_summaries.length > 0) {
-    const commitHashes = commentary.commit_summaries.map((c) => c.commit_hash);
-    const commitStats = await getMultipleCommitStats(commitHashes);
-
-    enrichedCommentary = {
-      ...commentary,
-      commit_summaries: commentary.commit_summaries.map((commit) => {
-        const stats = commitStats.get(commit.commit_hash);
-        return {
-          ...commit,
-          additions: stats?.additions,
-          deletions: stats?.deletions,
-        };
-      }),
-    };
-  }
-
-  const dashboardUrl = getDashboardUrl(id);
-  const forumCategoryUrl = getForumCategoryUrl();
-
-  // proposalType ("upgrade" | "install" | "other") drives both build
-  // verification and AI commentary; see isVerifiableProposal.
-  const proposalType = proposal.proposalType;
-
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
-          <Link
-            href="/"
-            className="text-sm text-muted-foreground hover:underline"
-          >
-            &larr; Back to proposals
-          </Link>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-6 space-y-6">
-        {/* Mark proposal as seen when page loads */}
-        <ProposalSeenMarker proposalId={id} />
-
-        {/* Unified Header with title, links, tech details, forum, and verification status */}
-        <ProposalHeader
-          proposalId={id}
-          title={proposal.title}
-          dashboardUrl={dashboardUrl}
-          proposalUrl={proposal.url}
-          canisterId={proposal.canisterId}
-          commitHash={proposal.commitHash}
-          expectedWasmHash={proposal.expectedWasmHash}
-          forumCategoryUrl={forumCategoryUrl}
-          verificationRun={verificationRun}
-          proposalType={proposalType}
-          linesAdded={diffStats?.linesAdded ?? null}
-          linesRemoved={diffStats?.linesRemoved ?? null}
-        />
-
-        {/* AI Commentary */}
-        <CommentaryWidget commentary={enrichedCommentary} proposalId={id} />
-
-        {/* Review Submission Widget */}
-        <ReviewSubmitWidget proposalId={id} />
-      </main>
+      <ProposalSeenMarker proposalId={id} />
+      <ProposalDetailV2 proposal={proposal} />
     </div>
   );
 }
