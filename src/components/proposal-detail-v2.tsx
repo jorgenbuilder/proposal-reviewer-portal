@@ -449,7 +449,7 @@ export function ProposalDetailV2({ proposal: p }: ProposalDetailV2Props) {
             flush row of buttons on the right sharing one edge-to-edge bottom
             border with vertical dividers between them. Status indicator is the
             leftmost button. */}
-        <div className="flex items-stretch border-b border-border">
+        <div className="sticky top-0 z-20 flex items-stretch border-y border-border bg-background">
           <nav aria-label="Breadcrumb" className="flex items-center gap-1 pl-3 pr-3 font-mono text-xs text-muted-foreground">
             <Link
               href="/"
