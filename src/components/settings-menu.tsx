@@ -76,7 +76,7 @@ function Row({ label, value, ok }: { label: string; value: string; ok?: boolean 
   );
 }
 
-export function SettingsMenu() {
+export function SettingsMenu({ triggerClassName }: { triggerClassName?: string } = {}) {
   const [open, setOpen] = useState(false);
   const [diag, setDiag] = useState<Diagnostics | null>(null);
   const [testing, setTesting] = useState<false | "real" | "fail">(false);
@@ -182,7 +182,13 @@ export function SettingsMenu() {
 
   return (
     <>
-      <Button variant="ghost" size="sm" aria-label="Settings" onClick={() => setOpen(true)}>
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label="Settings"
+        onClick={() => setOpen(true)}
+        className={triggerClassName}
+      >
         <Menu className="h-5 w-5" />
       </Button>
 

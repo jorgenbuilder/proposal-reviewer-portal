@@ -44,8 +44,21 @@ const hubIdlFactory = () => {
     timestamp: IDL.Int,
     topic: IDL.Nat,
   });
+  const ProposalWithCounts = IDL.Record({
+    adoptCount: IDL.Nat,
+    creationDate: IDL.Int,
+    deadline: IDL.Int,
+    deadlineDate: IDL.Int,
+    proposalId: IDL.Nat,
+    rejectCount: IDL.Nat,
+    timestamp: IDL.Int,
+    title: IDL.Text,
+    topic: IDL.Nat,
+    totalReviewCount: IDL.Nat,
+  });
   return IDL.Service({
     getProposal: IDL.Func([IDL.Nat], [IDL.Opt(Proposal)], ["query"]),
+    getProposals: IDL.Func([IDL.Opt(IDL.Nat)], [IDL.Vec(ProposalWithCounts)], ["query"]),
     getReviewerReviewHistory: IDL.Func([IDL.Principal], [IDL.Vec(Review)], ["query"]),
     getReviewerMissedProposals: IDL.Func([IDL.Principal], [IDL.Vec(Proposal)], ["query"]),
   });
@@ -53,6 +66,7 @@ const hubIdlFactory = () => {
 
 interface HubActor {
   getProposal: (id: bigint) => Promise<[{ deadline: bigint }] | []>;
+  getProposals: (topic: []) => Promise<{ proposalId: bigint; deadline: bigint }[]>;
   getReviewerReviewHistory: (p: Principal) => Promise<{ proposalId: bigint }[]>;
   getReviewerMissedProposals: (p: Principal) => Promise<{ proposalId: bigint }[]>;
 }
@@ -95,4 +109,35 @@ export async function getHubStatus(proposalId: string): Promise<HubStatus | null
   } catch {
     return null;
   }
+}
+
+/**
+ * Hub status for many proposals in one batch of reads (for the list page).
+ * Three canister queries total — history, missed, and all proposals with their
+ * deadlines — keyed by proposal id (string). Returns an empty map on failure.
+ */
+export async function getHubStatusMap(): Promise<Map<string, HubStatus>> {
+  const map = new Map<string, HubStatus>();
+  try {
+    const hub = await hubActor();
+    const reviewer = Principal.fromText(REVIEWER_PRINCIPAL);
+    const [history, missed, proposals] = await Promise.all([
+      hub.getReviewerReviewHistory(reviewer),
+      hub.getReviewerMissedProposals(reviewer),
+      hub.getProposals([]),
+    ]);
+    // Base: every tracked proposal is pending with its deadline.
+    for (const p of proposals) {
+      map.set(p.proposalId.toString(), {
+        state: "pending",
+        deadlineMs: Number(p.deadline / 1_000_000n),
+      });
+    }
+    // Terminal states override (a proposal can't be both, but done wins last).
+    for (const p of missed) map.set(p.proposalId.toString(), { state: "miss" });
+    for (const r of history) map.set(r.proposalId.toString(), { state: "done" });
+  } catch {
+    // empty map — list simply renders without hub status
+  }
+  return map;
 }
